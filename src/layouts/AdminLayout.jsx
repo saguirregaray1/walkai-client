@@ -7,12 +7,13 @@ const navItems = [
   {
     label: 'Dashboard',
     icon: DashboardIcon,
-    to: '/',
+    to: '/app',
+    end: true,
   },
   {
     label: 'Users',
     icon: UsersIcon,
-    to: '/users',
+    to: '/app/users',
   },
 ]
 

@@ -7,11 +7,10 @@ import Users from './pages/Users'
 const App = () => {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<AdminLayout />}>
+      <Route path="/" element={<Login />} />
+      <Route path="/app" element={<AdminLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="users" element={<Users />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

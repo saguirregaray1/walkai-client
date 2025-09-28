@@ -7,10 +7,11 @@ const Sidebar = ({ items, title }) => {
     <aside className={styles.sidebar}>
       {title ? <div className={styles.brand}>{title}</div> : null}
       <nav className={styles.nav} aria-label="Admin navigation">
-        {items.map(({ label, icon: IconComponent, to }) => (
+        {items.map(({ label, icon: IconComponent, to, end }) => (
           <NavLink
             key={to}
             to={to}
+            end={end}
             className={({ isActive }) =>
               [styles.navItem, isActive ? styles.active : ''].join(' ').trim()
             }
@@ -30,6 +31,7 @@ Sidebar.propTypes = {
       label: PropTypes.string.isRequired,
       icon: PropTypes.elementType.isRequired,
       to: PropTypes.string.isRequired,
+      end: PropTypes.bool,
     })
   ).isRequired,
   title: PropTypes.string,
