@@ -20,7 +20,7 @@ const Login = () => {
     window.setTimeout(() => {
       setIsSubmitting(false)
       // TODO: replace with real authentication when backend is ready
-      navigate('/', { replace: true })
+      navigate('/app', { replace: true })
     }, 1200)
   }
 
