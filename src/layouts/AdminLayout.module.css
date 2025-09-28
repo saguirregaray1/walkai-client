@@ -1,0 +1,21 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  background: #f1f5f9;
+}
+
+.main {
+  flex: 1;
+  padding: 2rem;
+}
+
+.content {
+  background: #ffffff;
+  border-radius: 1rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  padding: 2rem;
+  min-height: calc(100vh - 4rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}

@@ -1,0 +1,26 @@
+.card {
+  background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+  color: #f8fafc;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 12px 25px rgba(37, 99, 235, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.value {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.helper {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
