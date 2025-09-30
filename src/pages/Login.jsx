@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Login.module.css'
 
+const API_BASE = "http://127.0.0.1:8000"
+
 const Login = () => {
   const [formState, setFormState] = useState({ email: '', password: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -13,15 +15,44 @@ const Login = () => {
     setFormState((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
+    if (isSubmitting) return
     setIsSubmitting(true)
 
-    window.setTimeout(() => {
-      setIsSubmitting(false)
-      // TODO: replace with real authentication when backend is ready
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formState.email,
+          password: formState.password,
+        }),
+      })
+
+      if (!res.ok) {
+        // intenta leer el detalle del backend si existe
+        let detail = 'Invalid credentials'
+        try {
+          const err = await res.json()
+          if (err?.detail) detail = Array.isArray(err.detail) ? err.detail[0]?.msg || 'Login failed' : err.detail
+        } catch {}
+        throw new Error(detail)
+      }
+
+      const data = await res.json() // { access_token, token_type }
+      if (!data?.access_token) {
+        throw new Error('No access token returned by server')
+      }
+
+      localStorage.setItem('access_token', data.access_token)
       navigate('/app', { replace: true })
-    }, 1200)
+    } catch (err) {
+      // no cambiamos estilos: simple alerta
+      window.alert(err.message || 'Login failed')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
