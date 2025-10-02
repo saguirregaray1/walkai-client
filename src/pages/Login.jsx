@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Login.module.css'
 
-const API_BASE = "http://127.0.0.1:8000"
+const API_BASE = "/api"
 
 const Login = () => {
   const [formState, setFormState] = useState({ email: '', password: '' })

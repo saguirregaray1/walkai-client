@@ -20,7 +20,7 @@ const navItems = [
 const AdminLayout = () => {
   return (
     <div className={styles.container}>
-      <Sidebar items={navItems} title="Admin Console" />
+      <Sidebar items={navItems} title="Walk:AI" />
       <main className={styles.main}>
         <div className={styles.content}>
           <Outlet />
