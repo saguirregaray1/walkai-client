@@ -2,7 +2,7 @@ import PropTypes from 'prop-types'
 import { NavLink } from 'react-router-dom'
 import styles from './Sidebar.module.css'
 
-const Sidebar = ({ items, title }) => {
+const Sidebar = ({ items, title, onLogout, logoutLabel, logoutDisabled }) => {
   return (
     <aside className={styles.sidebar}>
       {title ? <div className={styles.brand}>{title}</div> : null}
@@ -21,6 +21,16 @@ const Sidebar = ({ items, title }) => {
           </NavLink>
         ))}
       </nav>
+      {onLogout ? (
+        <button
+          type="button"
+          className={styles.logoutButton}
+          onClick={onLogout}
+          disabled={logoutDisabled}
+        >
+          {logoutLabel}
+        </button>
+      ) : null}
     </aside>
   )
 }
@@ -35,10 +45,16 @@ Sidebar.propTypes = {
     })
   ).isRequired,
   title: PropTypes.string,
+  onLogout: PropTypes.func,
+  logoutLabel: PropTypes.string,
+  logoutDisabled: PropTypes.bool,
 }
 
 Sidebar.defaultProps = {
   title: '',
+  onLogout: undefined,
+  logoutLabel: 'Log out',
+  logoutDisabled: false,
 }
 
 export default Sidebar
