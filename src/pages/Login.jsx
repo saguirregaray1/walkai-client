@@ -48,7 +48,6 @@ const Login = () => {
       localStorage.setItem('access_token', data.access_token)
       navigate('/app', { replace: true })
     } catch (err) {
-      // no cambiamos estilos: simple alerta
       window.alert(err.message || 'Login failed')
     } finally {
       setIsSubmitting(false)
