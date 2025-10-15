@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import styles from './Users.module.css'
 
 const Users = () => {
@@ -12,6 +12,55 @@ const Users = () => {
     []
   )
 
+  const [isInviteOpen, setInviteOpen] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
+
+  const handleOpenInvite = () => {
+    setInviteOpen(true)
+  }
+
+  const handleCloseInvite = () => {
+    if (isSubmittingInvite) return
+    setInviteOpen(false)
+    setInviteEmail('')
+  }
+
+  const handleInviteSubmit = async (event) => {
+    event.preventDefault()
+    if (!inviteEmail || isSubmittingInvite) return
+
+    const email = inviteEmail.trim().toLowerCase()
+
+    setIsSubmittingInvite(true)
+    try {
+      const res = await fetch('/api/admin/invitations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email }),
+      })
+
+      if (res.status === 201) {
+        alert('Invitation created')
+        setInviteOpen(false)
+        setInviteEmail('')
+        return
+      }
+
+      let detail = 'Failed to send invitation. Please try again.'
+      try {
+        const data = await res.json()
+        if (data?.detail) detail = Array.isArray(data.detail) ? data.detail[0]?.msg || detail : data.detail
+      } catch (_) {}
+      alert(detail)
+    } catch (error) {
+      window.alert('Failed to send invitation. Please try again.')
+    } finally {
+      setIsSubmittingInvite(false)
+    }
+  }
+
   return (
     <section className={styles.users}>
       <header className={styles.header}>
@@ -19,7 +68,7 @@ const Users = () => {
           <h1>Users</h1>
           <p>Manage user roles, invitations, and access controls.</p>
         </div>
-        <button type="button" className={styles.primaryAction}>
+        <button type="button" className={styles.primaryAction} onClick={handleOpenInvite}>
           Invite User
         </button>
       </header>
@@ -72,6 +121,63 @@ const Users = () => {
           </tbody>
         </table>
       </div>
+
+      {isInviteOpen ? (
+        <div className={styles.modalOverlay} role="presentation" onClick={handleCloseInvite}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inviteUserTitle"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.closeButton}
+              onClick={handleCloseInvite}
+              aria-label="Close invite dialog"
+              disabled={isSubmittingInvite}
+            >
+              &times;
+            </button>
+            <h2 id="inviteUserTitle" className={styles.modalTitle}>
+              Invite user
+            </h2>
+            <p className={styles.modalDescription}>Send an invitation email to add a new team member.</p>
+            <form className={styles.modalForm} onSubmit={handleInviteSubmit}>
+              <label htmlFor="inviteEmail">
+                Email address
+                <input
+                  id="inviteEmail"
+                  type="email"
+                  placeholder="user@example.com"
+                  value={inviteEmail}
+                  onChange={(event) => setInviteEmail(event.target.value)}
+                  autoFocus
+                  required
+                />
+              </label>
+              <div className={styles.modalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={handleCloseInvite}
+                  disabled={isSubmittingInvite}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className={styles.primaryAction}
+                  disabled={!inviteEmail || isSubmittingInvite}
+                >
+                  {isSubmittingInvite ? 'Sending...' : 'Send invite'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
