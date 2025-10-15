@@ -1,37 +1,44 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 
 const API_BASE = '/api'
 
 export default function ProtectedRoute({ children }) {
-  const [status, setStatus] = useState('loading')
   const navigate = useNavigate()
 
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const res = await fetch(`${API_BASE}/me`, {
-          method: 'GET',
-          credentials: 'include',
-        })
-        if (!alive) return
-        if (res.ok) setStatus('ok')
-        else if (res.status === 401) setStatus('unauth')
-        else setStatus('unauth')
-      } catch {
-        if (alive) setStatus('unauth')
+  const sessionQuery = useQuery({
+    queryKey: ['session'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/me`, {
+        method: 'GET',
+        credentials: 'include',
+      })
+
+      if (res.status === 401) {
+        const error = new Error('Unauthorized')
+        error.code = 'unauth'
+        throw error
       }
-    })()
-    return () => { alive = false }
-  }, [])
+
+      if (!res.ok) {
+        const error = new Error('Failed to verify session')
+        error.code = 'error'
+        throw error
+      }
+
+      return res.json()
+    },
+    retry: false,
+  })
 
   useEffect(() => {
-    if (status === 'unauth') navigate('/', { replace: true })
-  }, [status, navigate])
+    if (sessionQuery.isError) navigate('/', { replace: true })
+  }, [sessionQuery.isError, navigate])
 
-  if (status === 'loading') {
+  if (sessionQuery.isPending) {
     return <div style={{ padding: 24 }}>Checking session…</div>
   }
+  if (sessionQuery.isError) return null
   return children
 }

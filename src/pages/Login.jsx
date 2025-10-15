@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Login.module.css'
 
@@ -7,29 +8,15 @@ const API_BASE = "/api"
 
 const Login = () => {
   const [formState, setFormState] = useState({ email: '', password: '' })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [loadingGitHub, setLoadingGitHub] = useState(false)
   const navigate = useNavigate()
 
-  const handleChange = (event) => {
-    const { name, value } = event.target
-    setFormState((prev) => ({ ...prev, [name]: value }))
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    if (isSubmitting) return
-    setIsSubmitting(true)
-
-    try {
+  const loginMutation = useMutation({
+    mutationFn: async ({ email, password }) => {
       const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',           
-        body: JSON.stringify({
-          email: formState.email,
-          password: formState.password,
-        }),
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
       })
 
       if (!res.ok) {
@@ -40,28 +27,48 @@ const Login = () => {
         } catch {}
         throw new Error(detail)
       }
+    },
+  })
 
-      navigate('/app', { replace: true })
-    } catch (err) {
-      window.alert(err.message || 'Login failed')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleGithubLogin = async () => {
-    if (loadingGitHub) return
-    try {
-      setLoadingGitHub(true)
+  const githubLoginMutation = useMutation({
+    mutationFn: async () => {
       const res = await fetch(`${API_BASE}/oauth/github/start?flow=login`, { method: 'GET' })
       if (!res.ok) throw new Error('GitHub login failed')
       const { authorize_url: authorizeUrl } = await res.json()
       if (!authorizeUrl) throw new Error('Missing authorization URL')
+      return authorizeUrl
+    },
+  })
+
+  const isSubmitting = loginMutation.isPending
+  const loadingGitHub = githubLoginMutation.isPending
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setFormState((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (loginMutation.isPending) return
+    try {
+      await loginMutation.mutateAsync({
+        email: formState.email,
+        password: formState.password,
+      })
+      navigate('/app', { replace: true })
+    } catch (err) {
+      window.alert(err.message || 'Login failed')
+    }
+  }
+
+  const handleGithubLogin = async () => {
+    if (githubLoginMutation.isPending) return
+    try {
+      const authorizeUrl = await githubLoginMutation.mutateAsync()
       window.location.href = authorizeUrl
     } catch (err) {
       alert(err.message || 'GitHub login failed')
-    } finally {
-      setLoadingGitHub(false)
     }
   }
 

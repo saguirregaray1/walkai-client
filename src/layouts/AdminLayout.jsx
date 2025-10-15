@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar from '../components/sidebar/Sidebar'
 import { DashboardIcon, UsersIcon } from '../components/icons'
@@ -22,26 +22,32 @@ const navItems = [
 
 const AdminLayout = () => {
   const navigate = useNavigate()
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const handleLogout = async () => {
-    if (isLoggingOut) return
-    setIsLoggingOut(true)
-    try {
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch(`${API_BASE}/logout`, {
         method: 'POST',
         credentials: 'include',
       })
       if (!response.ok) {
-        console.warn('Logout request failed', response.status)
+        const error = new Error(`Logout request failed (${response.status})`)
+        error.status = response.status
+        throw error
       }
+    },
+  })
+
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync()
     } catch (error) {
-      console.error('Logout request failed', error)
+      console.warn('Logout request failed', error)
     } finally {
-      setIsLoggingOut(false)
       navigate('/', { replace: true })
     }
   }
+
+  const isLoggingOut = logoutMutation.isPending
 
   return (
     <div className={styles.container}>
