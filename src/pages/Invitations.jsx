@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Invitations.module.css'
 
@@ -9,50 +10,104 @@ const Invitations = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const [status, setStatus] = useState('loading') 
-  const [email, setEmail] = useState('')
-  const [err, setErr] = useState(null)  
-  const [loadingGitHub, setLoadingGitHub] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [err, setErr] = useState(null)
+  const [formState, setFormState] = useState({ password: '', confirmPassword: '' })
+  const [forceExpired, setForceExpired] = useState(false)
 
   const invitationToken = searchParams.get('token')
 
+  const verifyInvitationQuery = useQuery({
+    queryKey: ['invitation-verify', invitationToken],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/invitations/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: invitationToken })
+      })
+
+      if (res.status === 400) {
+        const error = new Error('Invalid or expired invitation.')
+        error.code = 'expired'
+        throw error
+      }
+
+      if (!res.ok) {
+        const error = new Error('Invitation verification failed.')
+        error.code = 'error'
+        throw error
+      }
+
+      return res.json()
+    },
+    enabled: Boolean(invitationToken),
+    retry: false,
+  })
+
   useEffect(() => {
-    const verify = async () => {
-      if (!invitationToken) {
-        setStatus('no-token')
-        return
-      }
-      try {
-        const res = await fetch(`${API_BASE}/invitations/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: invitationToken })
-        })
-
-        if (res.status === 400) {
-          setStatus('expired')
-          return
-        }
-        if (!res.ok) {
-          setStatus('error')
-          return
-        }
-
-        const data = await res.json()
-        setEmail(data.email || '')
-        setStatus('ok')
-
-        window.history.replaceState({}, document.title, window.location.pathname)
-      } catch (e) {
-        setStatus('error')
-      }
+    if (verifyInvitationQuery.isSuccess) {
+      window.history.replaceState({}, document.title, window.location.pathname)
     }
+  }, [verifyInvitationQuery.isSuccess])
 
-    verify()
-  }, [invitationToken])
+  const acceptInvitationMutation = useMutation({
+    mutationFn: async ({ token, password }) => {
+      const res = await fetch(`${API_BASE}/invitations/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password })
+      })
 
-  const [formState, setFormState] = useState({ password: '', confirmPassword: '' })
+      if (res.status === 201) return
+
+      if (res.status === 409) {
+        const error = new Error('Account already exists for this invitation.')
+        error.code = 'conflict'
+        throw error
+      }
+
+      if (res.status === 400) {
+        const error = new Error('Invalid or expired invitation.')
+        error.code = 'expired'
+        throw error
+      }
+
+      let message = 'Failed to accept invitation.'
+      try {
+        const data = await res.json()
+        if (data?.detail) message = Array.isArray(data.detail) ? data.detail[0]?.msg || message : data.detail
+      } catch {}
+
+      const error = new Error(message)
+      error.code = 'error'
+      throw error
+    },
+  })
+
+  const githubSignupMutation = useMutation({
+    mutationFn: async (token) => {
+      const url = `${API_BASE}/oauth/github/start?invitation_token=${encodeURIComponent(token)}&flow=register`
+      const res = await fetch(url, { method: 'GET' })
+      if (!res.ok) throw new Error(`start failed: ${res.status}`)
+      const { authorize_url: authorizeUrl } = await res.json()
+      if (!authorizeUrl) throw new Error('GitHub start failed')
+      return authorizeUrl
+    },
+  })
+
+  const submitting = acceptInvitationMutation.isPending
+  const loadingGitHub = githubSignupMutation.isPending
+  const email = verifyInvitationQuery.data?.email ?? ''
+
+  const invitationStatus = (() => {
+    if (!invitationToken) return 'no-token'
+    if (forceExpired) return 'expired'
+    if (verifyInvitationQuery.isPending) return 'loading'
+    if (verifyInvitationQuery.isError) {
+      return verifyInvitationQuery.error?.code === 'expired' ? 'expired' : 'error'
+    }
+    return 'ok'
+  })()
+
   const handleChange = (event) => {
     const { name, value } = event.target
     setFormState((prev) => ({ ...prev, [name]: value }))
@@ -73,62 +128,46 @@ const Invitations = () => {
     }
 
     try {
-      setSubmitting(true)
-      const res = await fetch(`${API_BASE}/invitations/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: invitationToken, password: formState.password })
-      })
-
-      if (res.status === 201) {
-        alert('Account created')
-        navigate('/')
-        return
+      await acceptInvitationMutation.mutateAsync({ token: invitationToken, password: formState.password })
+      alert('Account created')
+      navigate('/')
+    } catch (error) {
+      if (error?.code === 'conflict') {
+        setErr(error.message)
+      } else if (error?.code === 'expired') {
+        setErr(error.message)
+        setForceExpired(true)
+      } else {
+        setErr(error?.message || 'Network error')
       }
-
-      if (res.status === 409) {
-        setErr('Account already exists for this invitation.')
-      } else if (res.status === 400) {
-        setErr('Invalid or expired invitation.')
-        setStatus('expired')
-      }
-    } catch (e) {
-      setErr(e?.message || 'Network error')
-    } finally {
-      setSubmitting(false)
     }
   }
 
   const handleGithubSignup = async () => {
     setErr(null)
     if (!invitationToken) {
-      setErr('Missing invitation token in URL'); return
+      setErr('Missing invitation token in URL')
+      return
     }
     try {
-      setLoadingGitHub(true)
-      const url = `${API_BASE}/oauth/github/start?invitation_token=${encodeURIComponent(invitationToken)}&flow=register`
-      const res = await fetch(url, { method: 'GET' })
-      if (!res.ok) throw new Error(`start failed: ${res.status}`)
-      const { authorize_url } = await res.json()
-      window.location.href = authorize_url
-    } catch (e) {
-      setErr(e.message || 'GitHub start failed')
-    } finally {
-      setLoadingGitHub(false)
+      const authorizeUrl = await githubSignupMutation.mutateAsync(invitationToken)
+      window.location.href = authorizeUrl
+    } catch (error) {
+      setErr(error.message || 'GitHub start failed')
     }
   }
 
-  if (status === 'loading') {
+  if (invitationStatus === 'loading') {
     return <AuthLayout><p className={styles.info}>Checking your invitation…</p></AuthLayout>
   }
 
-  if (status === 'expired' || status === 'no-token') {
+  if (invitationStatus === 'expired' || invitationStatus === 'no-token') {
     return (
       <AuthLayout>
         <div className={styles.header}>
           <h2>Invitation not available</h2>
           <p className={styles.error}>
-            {status === 'expired' ? 'Your invitation has expired or was already used' : 'Missing invitation token.'}
+            {invitationStatus === 'expired' ? 'Your invitation has expired or was already used' : 'Missing invitation token.'}
           </p>
           <button onClick={() => navigate('/')}>Go to login</button>
         </div>
@@ -136,7 +175,7 @@ const Invitations = () => {
     )
   }
 
-  if (status === 'error') {
+  if (invitationStatus === 'error') {
     return (
       <AuthLayout>
         <div className={styles.header}>
@@ -189,6 +228,8 @@ const Invitations = () => {
         </button>
       </form>
 
+      {err ? <p className={styles.error}>{err}</p> : null}
+
       <button type="button" className={styles.githubButton} onClick={handleGithubSignup} disabled={loadingGitHub}>
         {loadingGitHub ? 'Contacting GitHub…' : (
           <>
@@ -199,8 +240,6 @@ const Invitations = () => {
           </>
         )}
       </button>
-
-      {err && <p className={styles.error}>{err}</p>}
     </AuthLayout>
   )
 }

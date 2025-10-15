@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import styles from './Users.module.css'
 
 const Users = () => {
@@ -14,26 +15,9 @@ const Users = () => {
 
   const [isInviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [isSubmittingInvite, setIsSubmittingInvite] = useState(false)
 
-  const handleOpenInvite = () => {
-    setInviteOpen(true)
-  }
-
-  const handleCloseInvite = () => {
-    if (isSubmittingInvite) return
-    setInviteOpen(false)
-    setInviteEmail('')
-  }
-
-  const handleInviteSubmit = async (event) => {
-    event.preventDefault()
-    if (!inviteEmail || isSubmittingInvite) return
-
-    const email = inviteEmail.trim().toLowerCase()
-
-    setIsSubmittingInvite(true)
-    try {
+  const createInvitationMutation = useMutation({
+    mutationFn: async (email) => {
       const res = await fetch('/api/admin/invitations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,23 +25,42 @@ const Users = () => {
         body: JSON.stringify({ email }),
       })
 
-      if (res.status === 201) {
-        alert('Invitation created')
-        setInviteOpen(false)
-        setInviteEmail('')
-        return
-      }
+      if (res.status === 201) return
 
       let detail = 'Failed to send invitation. Please try again.'
       try {
         const data = await res.json()
         if (data?.detail) detail = Array.isArray(data.detail) ? data.detail[0]?.msg || detail : data.detail
       } catch (_) {}
-      alert(detail)
+      throw new Error(detail)
+    },
+  })
+
+  const isSubmittingInvite = createInvitationMutation.isPending
+
+  const handleOpenInvite = () => {
+    setInviteOpen(true)
+  }
+
+  const handleCloseInvite = () => {
+    if (createInvitationMutation.isPending) return
+    setInviteOpen(false)
+    setInviteEmail('')
+  }
+
+  const handleInviteSubmit = async (event) => {
+    event.preventDefault()
+    if (!inviteEmail || createInvitationMutation.isPending) return
+
+    const email = inviteEmail.trim().toLowerCase()
+
+    try {
+      await createInvitationMutation.mutateAsync(email)
+      alert('Invitation created')
+      setInviteOpen(false)
+      setInviteEmail('')
     } catch (error) {
-      window.alert('Failed to send invitation. Please try again.')
-    } finally {
-      setIsSubmittingInvite(false)
+      window.alert(error.message || 'Failed to send invitation. Please try again.')
     }
   }
 
