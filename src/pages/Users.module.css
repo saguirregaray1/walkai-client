@@ -75,6 +75,18 @@
   border-top: 1px solid #e2e8f0;
 }
 
+.tableMessage,
+.tableMessageError {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.tableMessageError {
+  color: #b91c1c;
+}
+
 .userCell {
   display: flex;
   align-items: center;

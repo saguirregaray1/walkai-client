@@ -1,8 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { JSX } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar, { type SidebarNavItem } from '../components/sidebar/Sidebar'
 import { DashboardIcon, JobsIcon, UsersIcon } from '../components/icons'
+import type { SessionUser } from '../api/session'
 import styles from './AdminLayout.module.css'
 
 const API_BASE = '/api'
@@ -28,6 +29,7 @@ const navItems: SidebarNavItem[] = [
 
 const AdminLayout = (): JSX.Element => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const logoutMutation = useMutation<void>({
     mutationFn: async () => {
@@ -52,12 +54,14 @@ const AdminLayout = (): JSX.Element => {
   }
 
   const isLoggingOut = logoutMutation.isPending
+  const session = queryClient.getQueryData<SessionUser>(['session'])
 
   return (
     <div className={styles.container}>
       <Sidebar
         items={navItems}
         title="Walk:AI"
+        userEmail={session?.email}
         onLogout={handleLogout}
         logoutLabel={isLoggingOut ? 'Logging out...' : 'Log out'}
         logoutDisabled={isLoggingOut}

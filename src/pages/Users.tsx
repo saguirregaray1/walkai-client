@@ -1,33 +1,62 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { ChangeEvent, FormEvent, JSX, MouseEvent } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import styles from './Users.module.css'
 
-type UserStatus = 'Active' | 'Invited' | 'Suspended'
+const API_BASE = '/api' as const
 
 type UserRecord = {
-  id: string
-  name: string
+  id: number
   email: string
   role: string
-  status: UserStatus
 }
-
-const API_BASE = '/api' as const
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
   error instanceof Error ? error.message || fallback : fallback
 
+const isUserRecord = (value: unknown): value is UserRecord => {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  return typeof record.id === 'number' && typeof record.email === 'string' && typeof record.role === 'string'
+}
+
+const fetchUsers = async (): Promise<UserRecord[]> => {
+  const res = await fetch(`${API_BASE}/users`, { credentials: 'include' })
+
+  if (!res.ok) {
+    let detail = 'Failed to load users. Please try again.'
+    try {
+      const data = await res.json()
+      if (data?.detail) detail = Array.isArray(data.detail) ? data.detail[0]?.msg || detail : data.detail
+    } catch {}
+    throw new Error(detail)
+  }
+
+  let payload: unknown
+  try {
+    payload = await res.json()
+  } catch {
+    throw new Error('Received unreadable users response. Please try again.')
+  }
+
+  if (!Array.isArray(payload) || !payload.every(isUserRecord)) {
+    throw new Error('Received malformed users response. Please contact support.')
+  }
+
+  return payload
+}
+
 const Users = (): JSX.Element => {
-  const users = useMemo<UserRecord[]>(
-    () => [
-      { id: 'USR-001', name: 'Jane Cooper', email: 'jane@example.com', role: 'Admin', status: 'Active' },
-      { id: 'USR-002', name: 'Devon Lane', email: 'devon@example.com', role: 'Manager', status: 'Invited' },
-      { id: 'USR-003', name: 'Courtney Henry', email: 'courtney@example.com', role: 'Member', status: 'Active' },
-      { id: 'USR-004', name: 'Eleanor Pena', email: 'eleanor@example.com', role: 'Member', status: 'Suspended' },
-    ],
-    []
-  )
+  const {
+    data: users = [],
+    isLoading: isLoadingUsers,
+    isError: isUsersError,
+    error: usersError,
+  } = useQuery<UserRecord[], Error>({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
+    staleTime: 5 * 60 * 1000,
+  })
 
   const [isInviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -106,45 +135,47 @@ const Users = (): JSX.Element => {
           <thead>
             <tr>
               <th scope="col">User ID</th>
-              <th scope="col">Name</th>
               <th scope="col">Email</th>
               <th scope="col">Role</th>
-              <th scope="col">Status</th>
               <th scope="col" className={styles.actionsHeader}>
                 Actions
               </th>
             </tr>
           </thead>
           <tbody>
-            {users.map(({ id, name, email, role, status }) => (
-              <tr key={id}>
-                <td>{id}</td>
-                <td>
-                  <div className={styles.userCell}>
-                    <span className={styles.avatar} aria-hidden="true">
-                      {name
-                        .split(' ')
-                        .map((part) => part[0])
-                        .join('')}
-                    </span>
-                    <span>{name}</span>
-                  </div>
-                </td>
-                <td>{email}</td>
-                <td>{role}</td>
-                <td>
-                  <span className={[styles.status, styles[status.toLowerCase()]].join(' ').trim()}>
-                    {status}
-                  </span>
-                </td>
-                <td className={styles.actionsCell}>
-                  <button type="button">Edit</button>
-                  <button type="button" className={styles.danger}>
-                    Remove
-                  </button>
+            {isLoadingUsers ? (
+              <tr>
+                <td colSpan={4} className={styles.tableMessage}>
+                  Loading users...
                 </td>
               </tr>
-            ))}
+            ) : isUsersError ? (
+              <tr>
+                <td colSpan={4} className={styles.tableMessageError}>
+                  {getErrorMessage(usersError, 'Unable to load users. Please try again later.')}
+                </td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={4} className={styles.tableMessage}>
+                  No users found.
+                </td>
+              </tr>
+            ) : (
+              users.map(({ id, email, role }) => (
+                <tr key={id}>
+                  <td>{id}</td>
+                  <td>{email}</td>
+                  <td>{role}</td>
+                  <td className={styles.actionsCell}>
+                    <button type="button">Edit</button>
+                    <button type="button" className={styles.danger}>
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

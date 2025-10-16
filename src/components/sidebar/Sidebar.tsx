@@ -17,6 +17,7 @@ export type SidebarNavItem = {
 type SidebarProps = {
   items: SidebarNavItem[]
   title?: string
+  userEmail?: string
   onLogout?: () => void
   logoutLabel?: string
   logoutDisabled?: boolean
@@ -25,13 +26,19 @@ type SidebarProps = {
 const Sidebar = ({
   items,
   title,
+  userEmail,
   onLogout,
   logoutLabel = 'Log out',
   logoutDisabled = false,
 }: SidebarProps): JSX.Element => {
   return (
     <aside className={styles.sidebar}>
-      {title ? <div className={styles.brand}>{title}</div> : null}
+      {title || userEmail ? (
+        <div className={styles.identity}>
+          {title ? <div className={styles.brand}>{title}</div> : null}
+          {userEmail ? <div className={styles.userEmail}>{userEmail}</div> : null}
+        </div>
+      ) : null}
       <nav className={styles.nav} aria-label="Admin navigation">
         {items.map(({ label, icon: IconComponent, to, end }) => (
           <NavLink
