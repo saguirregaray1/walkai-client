@@ -1,7 +1,6 @@
 import type { JSX } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './layouts/AdminLayout'
-import Dashboard from './pages/Dashboard'
 import Invitations from './pages/Invitations'
 import Jobs from './pages/Jobs'
 import Login from './pages/Login'
@@ -14,7 +13,7 @@ const App = (): JSX.Element => {
       <Route path="/" element={<Login />} />
       <Route path="/invitations" element={<Invitations />} />
 
-      <Route 
+      <Route
         path="/app"
         element={
           <ProtectedRoute>
@@ -22,7 +21,7 @@ const App = (): JSX.Element => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
+        <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<Users />} />
         <Route path="jobs" element={<Jobs />} />
       </Route>

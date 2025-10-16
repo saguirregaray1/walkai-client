@@ -2,19 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { JSX } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import Sidebar, { type SidebarNavItem } from '../components/sidebar/Sidebar'
-import { DashboardIcon, JobsIcon, UsersIcon } from '../components/icons'
+import { JobsIcon, UsersIcon } from '../components/icons'
 import type { SessionUser } from '../api/session'
 import styles from './AdminLayout.module.css'
 
 const API_BASE = '/api'
 
 const navItems: SidebarNavItem[] = [
-  {
-    label: 'Dashboard',
-    icon: DashboardIcon,
-    to: '/app',
-    end: true,
-  },
   {
     label: 'Users',
     icon: UsersIcon,
