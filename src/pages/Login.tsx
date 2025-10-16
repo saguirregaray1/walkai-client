@@ -1,16 +1,25 @@
 import { useState } from 'react'
+import type { ChangeEvent, FormEvent, JSX } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Login.module.css'
 
-const API_BASE = "/api"
+const API_BASE = '/api' as const
 
-const Login = () => {
-  const [formState, setFormState] = useState({ email: '', password: '' })
+type LoginFormState = {
+  email: string
+  password: string
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message || fallback : fallback
+
+const Login = (): JSX.Element => {
+  const [formState, setFormState] = useState<LoginFormState>({ email: '', password: '' })
   const navigate = useNavigate()
 
-  const loginMutation = useMutation({
+  const loginMutation = useMutation<void, Error, LoginFormState>({
     mutationFn: async ({ email, password }) => {
       const res = await fetch(`${API_BASE}/login`, {
         method: 'POST',
@@ -30,7 +39,7 @@ const Login = () => {
     },
   })
 
-  const githubLoginMutation = useMutation({
+  const githubLoginMutation = useMutation<string>({
     mutationFn: async () => {
       const res = await fetch(`${API_BASE}/oauth/github/start?flow=login`, { method: 'GET' })
       if (!res.ok) throw new Error('GitHub login failed')
@@ -43,12 +52,13 @@ const Login = () => {
   const isSubmitting = loginMutation.isPending
   const loadingGitHub = githubLoginMutation.isPending
 
-  const handleChange = (event) => {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target
-    setFormState((prev) => ({ ...prev, [name]: value }))
+    const field = name as keyof LoginFormState
+    setFormState((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (loginMutation.isPending) return
     try {
@@ -57,8 +67,8 @@ const Login = () => {
         password: formState.password,
       })
       navigate('/app', { replace: true })
-    } catch (err) {
-      window.alert(err.message || 'Login failed')
+    } catch (error) {
+      window.alert(getErrorMessage(error, 'Login failed'))
     }
   }
 
@@ -67,8 +77,8 @@ const Login = () => {
     try {
       const authorizeUrl = await githubLoginMutation.mutateAsync()
       window.location.href = authorizeUrl
-    } catch (err) {
-      alert(err.message || 'GitHub login failed')
+    } catch (error) {
+      alert(getErrorMessage(error, 'GitHub login failed'))
     }
   }
 

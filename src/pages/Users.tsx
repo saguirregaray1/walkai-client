@@ -1,9 +1,25 @@
 import { useMemo, useState } from 'react'
+import type { ChangeEvent, FormEvent, JSX, MouseEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import styles from './Users.module.css'
 
-const Users = () => {
-  const users = useMemo(
+type UserStatus = 'Active' | 'Invited' | 'Suspended'
+
+type UserRecord = {
+  id: string
+  name: string
+  email: string
+  role: string
+  status: UserStatus
+}
+
+const API_BASE = '/api' as const
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message || fallback : fallback
+
+const Users = (): JSX.Element => {
+  const users = useMemo<UserRecord[]>(
     () => [
       { id: 'USR-001', name: 'Jane Cooper', email: 'jane@example.com', role: 'Admin', status: 'Active' },
       { id: 'USR-002', name: 'Devon Lane', email: 'devon@example.com', role: 'Manager', status: 'Invited' },
@@ -16,9 +32,9 @@ const Users = () => {
   const [isInviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
 
-  const createInvitationMutation = useMutation({
+  const createInvitationMutation = useMutation<void, Error, string>({
     mutationFn: async (email) => {
-      const res = await fetch('/api/admin/invitations', {
+      const res = await fetch(`${API_BASE}/admin/invitations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -31,7 +47,7 @@ const Users = () => {
       try {
         const data = await res.json()
         if (data?.detail) detail = Array.isArray(data.detail) ? data.detail[0]?.msg || detail : data.detail
-      } catch (_) {}
+      } catch {}
       throw new Error(detail)
     },
   })
@@ -48,7 +64,15 @@ const Users = () => {
     setInviteEmail('')
   }
 
-  const handleInviteSubmit = async (event) => {
+  const handleInviteEmailChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setInviteEmail(event.target.value)
+  }
+
+  const handleModalClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+  }
+
+  const handleInviteSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!inviteEmail || createInvitationMutation.isPending) return
 
@@ -60,7 +84,7 @@ const Users = () => {
       setInviteOpen(false)
       setInviteEmail('')
     } catch (error) {
-      window.alert(error.message || 'Failed to send invitation. Please try again.')
+      window.alert(getErrorMessage(error, 'Failed to send invitation. Please try again.'))
     }
   }
 
@@ -97,7 +121,7 @@ const Users = () => {
                 <td>{id}</td>
                 <td>
                   <div className={styles.userCell}>
-                    <span className={styles.avatar} aria-hidden>
+                    <span className={styles.avatar} aria-hidden="true">
                       {name
                         .split(' ')
                         .map((part) => part[0])
@@ -132,7 +156,7 @@ const Users = () => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="inviteUserTitle"
-            onClick={(event) => event.stopPropagation()}
+            onClick={handleModalClick}
           >
             <button
               type="button"
@@ -155,7 +179,7 @@ const Users = () => {
                   type="email"
                   placeholder="user@example.com"
                   value={inviteEmail}
-                  onChange={(event) => setInviteEmail(event.target.value)}
+                  onChange={handleInviteEmailChange}
                   autoFocus
                   required
                 />

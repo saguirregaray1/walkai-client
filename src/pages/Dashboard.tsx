@@ -1,19 +1,32 @@
+import type { JSX } from 'react'
 import styles from './Dashboard.module.css'
 import { StatCard } from '../components/cards'
 
-const insights = [
+type Insight = {
+  title: string
+  value: string
+  helperText?: string
+}
+
+type ActivityItem = {
+  id: number
+  action: string
+  timestamp: string
+}
+
+const insights: Insight[] = [
   { title: 'Active Users', value: '2,845', helperText: '+12% vs last week' },
   { title: 'New Signups', value: '312', helperText: '+8% vs last week' },
   { title: 'Support Tickets', value: '27', helperText: '5 unresolved' },
 ]
 
-const recentActivity = [
+const recentActivity: ActivityItem[] = [
   { id: 1, action: 'New user invited', timestamp: '2 minutes ago' },
   { id: 2, action: 'Password reset completed', timestamp: '8 minutes ago' },
   { id: 3, action: 'Role updated to Admin', timestamp: '24 minutes ago' },
 ]
 
-const Dashboard = () => {
+const Dashboard = (): JSX.Element => {
   return (
     <section className={styles.dashboard}>
       <header className={styles.header}>

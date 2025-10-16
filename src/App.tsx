@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './layouts/AdminLayout'
 import Dashboard from './pages/Dashboard'
@@ -6,7 +7,7 @@ import Login from './pages/Login'
 import Users from './pages/Users'
 import ProtectedRoute from './components/protected route/ProtectedRoute'
 
-const App = () => {
+const App = (): JSX.Element => {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
