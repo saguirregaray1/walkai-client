@@ -1,13 +1,25 @@
 import { useEffect } from 'react'
+import type { ReactElement } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 const API_BASE = '/api'
 
-export default function ProtectedRoute({ children }) {
+type SessionErrorCode = 'unauth' | 'error'
+
+type SessionError = Error & { code: SessionErrorCode }
+
+const createSessionError = (message: string, code: SessionErrorCode): SessionError =>
+  Object.assign(new Error(message), { code })
+
+type ProtectedRouteProps = {
+  children: ReactElement
+}
+
+export default function ProtectedRoute({ children }: ProtectedRouteProps): ReactElement | null {
   const navigate = useNavigate()
 
-  const sessionQuery = useQuery({
+  const sessionQuery = useQuery<unknown, SessionError>({
     queryKey: ['session'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/me`, {
@@ -16,15 +28,11 @@ export default function ProtectedRoute({ children }) {
       })
 
       if (res.status === 401) {
-        const error = new Error('Unauthorized')
-        error.code = 'unauth'
-        throw error
+        throw createSessionError('Unauthorized', 'unauth')
       }
 
       if (!res.ok) {
-        const error = new Error('Failed to verify session')
-        error.code = 'error'
-        throw error
+        throw createSessionError('Failed to verify session', 'error')
       }
 
       return res.json()

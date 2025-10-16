@@ -1,22 +1,49 @@
 import { useState, useEffect } from 'react'
+import type { ChangeEvent, FormEvent, JSX } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import AuthLayout from '../layouts/AuthLayout'
 import styles from './Invitations.module.css'
 
-const API_BASE = '/api'
+const API_BASE = '/api' as const
 
-const Invitations = () => {
+type InvitationVerificationResponse = {
+  email: string
+}
+
+type InvitationErrorCode = 'expired' | 'error' | 'conflict'
+
+type InvitationError = Error & { code: InvitationErrorCode }
+
+const createInvitationError = (message: string, code: InvitationErrorCode): InvitationError =>
+  Object.assign(new Error(message), { code })
+
+type InvitationFormState = {
+  password: string
+  confirmPassword: string
+}
+
+type InvitationStatus = 'no-token' | 'expired' | 'loading' | 'error' | 'ok'
+
+type AcceptInvitationVariables = {
+  token: string
+  password: string
+}
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error ? error.message || fallback : fallback
+
+const Invitations = (): JSX.Element => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
 
-  const [err, setErr] = useState(null)
-  const [formState, setFormState] = useState({ password: '', confirmPassword: '' })
+  const [err, setErr] = useState<string | null>(null)
+  const [formState, setFormState] = useState<InvitationFormState>({ password: '', confirmPassword: '' })
   const [forceExpired, setForceExpired] = useState(false)
 
   const invitationToken = searchParams.get('token')
 
-  const verifyInvitationQuery = useQuery({
+  const verifyInvitationQuery = useQuery<InvitationVerificationResponse, InvitationError>({
     queryKey: ['invitation-verify', invitationToken],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/invitations/verify`, {
@@ -26,18 +53,15 @@ const Invitations = () => {
       })
 
       if (res.status === 400) {
-        const error = new Error('Invalid or expired invitation.')
-        error.code = 'expired'
-        throw error
+        throw createInvitationError('Invalid or expired invitation.', 'expired')
       }
 
       if (!res.ok) {
-        const error = new Error('Invitation verification failed.')
-        error.code = 'error'
-        throw error
+        throw createInvitationError('Invitation verification failed.', 'error')
       }
 
-      return res.json()
+      const data = (await res.json()) as InvitationVerificationResponse
+      return data
     },
     enabled: Boolean(invitationToken),
     retry: false,
@@ -49,7 +73,7 @@ const Invitations = () => {
     }
   }, [verifyInvitationQuery.isSuccess])
 
-  const acceptInvitationMutation = useMutation({
+  const acceptInvitationMutation = useMutation<void, InvitationError, AcceptInvitationVariables>({
     mutationFn: async ({ token, password }) => {
       const res = await fetch(`${API_BASE}/invitations/accept`, {
         method: 'POST',
@@ -59,17 +83,8 @@ const Invitations = () => {
 
       if (res.status === 201) return
 
-      if (res.status === 409) {
-        const error = new Error('Account already exists for this invitation.')
-        error.code = 'conflict'
-        throw error
-      }
-
-      if (res.status === 400) {
-        const error = new Error('Invalid or expired invitation.')
-        error.code = 'expired'
-        throw error
-      }
+      if (res.status === 409) throw createInvitationError('Account already exists for this invitation.', 'conflict')
+      if (res.status === 400) throw createInvitationError('Invalid or expired invitation.', 'expired')
 
       let message = 'Failed to accept invitation.'
       try {
@@ -77,13 +92,11 @@ const Invitations = () => {
         if (data?.detail) message = Array.isArray(data.detail) ? data.detail[0]?.msg || message : data.detail
       } catch {}
 
-      const error = new Error(message)
-      error.code = 'error'
-      throw error
+      throw createInvitationError(message, 'error')
     },
   })
 
-  const githubSignupMutation = useMutation({
+  const githubSignupMutation = useMutation<string, Error, string>({
     mutationFn: async (token) => {
       const url = `${API_BASE}/oauth/github/start?invitation_token=${encodeURIComponent(token)}&flow=register`
       const res = await fetch(url, { method: 'GET' })
@@ -98,7 +111,7 @@ const Invitations = () => {
   const loadingGitHub = githubSignupMutation.isPending
   const email = verifyInvitationQuery.data?.email ?? ''
 
-  const invitationStatus = (() => {
+  const invitationStatus: InvitationStatus = (() => {
     if (!invitationToken) return 'no-token'
     if (forceExpired) return 'expired'
     if (verifyInvitationQuery.isPending) return 'loading'
@@ -108,14 +121,21 @@ const Invitations = () => {
     return 'ok'
   })()
 
-  const handleChange = (event) => {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target
-    setFormState((prev) => ({ ...prev, [name]: value }))
+    const field = name as keyof InvitationFormState
+    setFormState((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleSubmit = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setErr(null)
+
+    if (!invitationToken) {
+      setErr('Missing invitation token in URL')
+      setForceExpired(true)
+      return
+    }
 
     if (formState.password.trim().length < 8) {
       alert('Password must be at least 8 characters long.')
@@ -132,13 +152,18 @@ const Invitations = () => {
       alert('Account created')
       navigate('/')
     } catch (error) {
-      if (error?.code === 'conflict') {
-        setErr(error.message)
-      } else if (error?.code === 'expired') {
-        setErr(error.message)
-        setForceExpired(true)
+      if (error instanceof Error && 'code' in error) {
+        const invitationError = error as InvitationError
+        if (invitationError.code === 'conflict') {
+          setErr(invitationError.message)
+        } else if (invitationError.code === 'expired') {
+          setErr(invitationError.message)
+          setForceExpired(true)
+        } else {
+          setErr(invitationError.message || 'Network error')
+        }
       } else {
-        setErr(error?.message || 'Network error')
+        setErr(getErrorMessage(error, 'Network error'))
       }
     }
   }
@@ -153,7 +178,7 @@ const Invitations = () => {
       const authorizeUrl = await githubSignupMutation.mutateAsync(invitationToken)
       window.location.href = authorizeUrl
     } catch (error) {
-      setErr(error.message || 'GitHub start failed')
+      setErr(getErrorMessage(error, 'GitHub start failed'))
     }
   }
 

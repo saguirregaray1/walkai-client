@@ -1,7 +1,11 @@
-import PropTypes from 'prop-types'
+import type { JSX, ReactNode } from 'react'
 import styles from './AuthLayout.module.css'
 
-const AuthLayout = ({ children }) => {
+type AuthLayoutProps = {
+  children: ReactNode
+}
+
+const AuthLayout = ({ children }: AuthLayoutProps): JSX.Element => {
   return (
     <div className={styles.container}>
       <section className={styles.card}>
@@ -13,10 +17,6 @@ const AuthLayout = ({ children }) => {
       </section>
     </div>
   )
-}
-
-AuthLayout.propTypes = {
-  children: PropTypes.node.isRequired,
 }
 
 export default AuthLayout

@@ -1,12 +1,13 @@
 import { useMutation } from '@tanstack/react-query'
+import type { JSX } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
-import Sidebar from '../components/sidebar/Sidebar'
+import Sidebar, { type SidebarNavItem } from '../components/sidebar/Sidebar'
 import { DashboardIcon, UsersIcon } from '../components/icons'
 import styles from './AdminLayout.module.css'
 
 const API_BASE = '/api'
 
-const navItems = [
+const navItems: SidebarNavItem[] = [
   {
     label: 'Dashboard',
     icon: DashboardIcon,
@@ -20,19 +21,17 @@ const navItems = [
   },
 ]
 
-const AdminLayout = () => {
+const AdminLayout = (): JSX.Element => {
   const navigate = useNavigate()
 
-  const logoutMutation = useMutation({
+  const logoutMutation = useMutation<void>({
     mutationFn: async () => {
       const response = await fetch(`${API_BASE}/logout`, {
         method: 'POST',
         credentials: 'include',
       })
       if (!response.ok) {
-        const error = new Error(`Logout request failed (${response.status})`)
-        error.status = response.status
-        throw error
+        throw new Error(`Logout request failed (${response.status})`)
       }
     },
   })

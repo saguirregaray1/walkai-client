@@ -1,8 +1,34 @@
-import PropTypes from 'prop-types'
+import type { ComponentType, JSX, SVGProps } from 'react'
 import { NavLink } from 'react-router-dom'
 import styles from './Sidebar.module.css'
 
-const Sidebar = ({ items, title, onLogout, logoutLabel, logoutDisabled }) => {
+type SidebarIconProps = Omit<SVGProps<SVGSVGElement>, 'ref'> & {
+  size?: number
+  title?: string
+}
+
+export type SidebarNavItem = {
+  label: string
+  icon: ComponentType<SidebarIconProps>
+  to: string
+  end?: boolean
+}
+
+type SidebarProps = {
+  items: SidebarNavItem[]
+  title?: string
+  onLogout?: () => void
+  logoutLabel?: string
+  logoutDisabled?: boolean
+}
+
+const Sidebar = ({
+  items,
+  title,
+  onLogout,
+  logoutLabel = 'Log out',
+  logoutDisabled = false,
+}: SidebarProps): JSX.Element => {
   return (
     <aside className={styles.sidebar}>
       {title ? <div className={styles.brand}>{title}</div> : null}
@@ -33,28 +59,6 @@ const Sidebar = ({ items, title, onLogout, logoutLabel, logoutDisabled }) => {
       ) : null}
     </aside>
   )
-}
-
-Sidebar.propTypes = {
-  items: PropTypes.arrayOf(
-    PropTypes.shape({
-      label: PropTypes.string.isRequired,
-      icon: PropTypes.elementType.isRequired,
-      to: PropTypes.string.isRequired,
-      end: PropTypes.bool,
-    })
-  ).isRequired,
-  title: PropTypes.string,
-  onLogout: PropTypes.func,
-  logoutLabel: PropTypes.string,
-  logoutDisabled: PropTypes.bool,
-}
-
-Sidebar.defaultProps = {
-  title: '',
-  onLogout: undefined,
-  logoutLabel: 'Log out',
-  logoutDisabled: false,
 }
 
 export default Sidebar
