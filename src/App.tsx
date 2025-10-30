@@ -7,6 +7,7 @@ import Login from './pages/Login'
 import Users from './pages/Users'
 import ProtectedRoute from './components/protected route/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
+import JobDetail from './pages/JobDetail'
 
 const App = (): JSX.Element => {
   return (
@@ -26,6 +27,7 @@ const App = (): JSX.Element => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="users" element={<Users />} />
         <Route path="jobs" element={<Jobs />} />
+        <Route path="jobs/:jobId" element={<JobDetail />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

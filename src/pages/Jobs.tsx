@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import type { JSX } from 'react'
+import type { JSX, KeyboardEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styles from './Jobs.module.css'
 
 const API_BASE = '/api' as const
@@ -113,6 +114,8 @@ const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message || 'Something went wrong.' : 'Something went wrong.'
 
 const Jobs = (): JSX.Element => {
+  const navigate = useNavigate()
+
   const jobsQuery = useQuery<JobRecord[], Error>({
     queryKey: ['jobs', 'list'],
     queryFn: fetchJobs,
@@ -126,6 +129,17 @@ const Jobs = (): JSX.Element => {
     const key = getStatusStyleKey(status)
     const modifier = styles[key] ?? styles.unknown
     return `${styles.statusBadge} ${modifier}`.trim()
+  }
+
+  const handleRowNavigate = (jobId: number) => {
+    navigate(`/app/jobs/${jobId}`)
+  }
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, jobId: number) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleRowNavigate(jobId)
+    }
   }
 
   return (
@@ -172,7 +186,15 @@ const Jobs = (): JSX.Element => {
                     const lastRunStarted = lastRun?.started_at ?? null
 
                     return (
-                      <tr key={id}>
+                      <tr
+                        key={id}
+                        className={styles.clickableRow}
+                        tabIndex={0}
+                        role="link"
+                        aria-label={`View details for job #${id}`}
+                        onClick={() => handleRowNavigate(id)}
+                        onKeyDown={(event) => handleRowKeyDown(event, id)}
+                      >
                         <td>#{id}</td>
                         <td className={styles.monospace}>{image}</td>
                         <td>{gpu_profile}</td>
