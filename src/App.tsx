@@ -6,6 +6,7 @@ import Jobs from './pages/Jobs'
 import Login from './pages/Login'
 import Users from './pages/Users'
 import ProtectedRoute from './components/protected route/ProtectedRoute'
+import Dashboard from './pages/Dashboard'
 
 const App = (): JSX.Element => {
   return (
@@ -21,7 +22,8 @@ const App = (): JSX.Element => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="users" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
         <Route path="users" element={<Users />} />
         <Route path="jobs" element={<Jobs />} />
       </Route>
