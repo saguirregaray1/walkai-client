@@ -8,6 +8,7 @@ import Users from './pages/Users'
 import ProtectedRoute from './components/protected route/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import JobDetail from './pages/JobDetail'
+import PodDetail from './pages/PodDetail'
 
 const App = (): JSX.Element => {
   return (
@@ -28,6 +29,7 @@ const App = (): JSX.Element => {
         <Route path="users" element={<Users />} />
         <Route path="jobs" element={<Jobs />} />
         <Route path="jobs/:jobId" element={<JobDetail />} />
+        <Route path="pods/:podName" element={<PodDetail />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

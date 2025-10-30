@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { JSX } from 'react'
+import type { JSX, KeyboardEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styles from './Dashboard.module.css'
 
 const API_BASE = '/api' as const
@@ -183,6 +184,8 @@ const fetchClusterPods = async (): Promise<ClusterPod[]> => {
 }
 
 const Dashboard = (): JSX.Element => {
+  const navigate = useNavigate()
+
   const resourcesQuery = useQuery<ClusterResource[], Error>({
     queryKey: ['cluster', 'resources'],
     queryFn: fetchClusterResources,
@@ -208,6 +211,18 @@ const Dashboard = (): JSX.Element => {
     const key = getStatusStyleKey(status)
     const modifier = styles[key] ?? styles.unknown
     return `${styles.podStatus} ${modifier}`.trim()
+  }
+
+  const handleRowNavigate = (pod: ClusterPod) => {
+    const podNameParam = encodeURIComponent(pod.name)
+    navigate(`/app/pods/${podNameParam}`, { state: { pod } })
+  }
+
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, pod: ClusterPod) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      handleRowNavigate(pod)
+    }
   }
 
   return (
@@ -320,20 +335,31 @@ const Dashboard = (): JSX.Element => {
                 </tr>
               </thead>
               <tbody>
-                {pods.map(({ name, namespace, status, gpu, start_time: startTime, finish_time: finishTime }) => (
-                  <tr key={`${namespace}-${name}`}>
-                    <td className={styles.monospace}>
-                      <span title={name}>{cropPodName(name)}</span>
-                    </td>
-                    <td className={styles.monospace}>{namespace}</td>
-                    <td>{formatGpuLabel(gpu)}</td>
-                    <td>
-                      <span className={getStatusClassName(status)}>{formatStatusLabel(status)}</span>
-                    </td>
-                    <td>{formatDateTime(startTime)}</td>
-                    <td>{formatDateTime(finishTime)}</td>
-                  </tr>
-                ))}
+                {pods.map((pod) => {
+                  const { name, namespace, status, gpu, start_time: startTime, finish_time: finishTime } = pod
+                  return (
+                    <tr
+                      key={`${namespace}-${name}`}
+                      className={styles.clickableRow}
+                      tabIndex={0}
+                      role="link"
+                      aria-label={`View details for pod ${name}`}
+                      onClick={() => handleRowNavigate(pod)}
+                      onKeyDown={(event) => handleRowKeyDown(event, pod)}
+                    >
+                      <td className={styles.monospace}>
+                        <span title={name}>{cropPodName(name)}</span>
+                      </td>
+                      <td className={styles.monospace}>{namespace}</td>
+                      <td>{formatGpuLabel(gpu)}</td>
+                      <td>
+                        <span className={getStatusClassName(status)}>{formatStatusLabel(status)}</span>
+                      </td>
+                      <td>{formatDateTime(startTime)}</td>
+                      <td>{formatDateTime(finishTime)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
