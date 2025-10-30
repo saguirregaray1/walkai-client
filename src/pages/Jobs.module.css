@@ -90,6 +90,21 @@
   border-top: 1px solid #e2e8f0;
 }
 
+.clickableRow {
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.clickableRow:hover,
+.clickableRow:focus {
+  background: #f8fafc;
+}
+
+.clickableRow:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
 .emptyCell {
   text-align: center;
   color: #64748b;
