@@ -4,15 +4,10 @@ import styles from './Jobs.module.css'
 
 const API_BASE = '/api' as const
 
-type RunningPod = {
-  name: string
-  namespace: string
-  status: string
-}
-
 type JobRun = {
   id: number
   status: string
+  k8s_job_name: string
   k8s_pod_name: string
   started_at: string | null
   finished_at: string | null
@@ -24,21 +19,65 @@ type JobRecord = {
   gpu_profile: string
   submitted_at: string
   created_by_id: number
-  k8s_job_name: string
-  runs: JobRun[]
+  latest_run: JobRun | null | undefined
 }
 
-const fetchJson = async <T,>(path: string): Promise<T> => {
-  const response = await fetch(`${API_BASE}${path}`, {
+const isJobRun = (value: unknown): value is JobRun => {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+
+  const isNullableString = (input: unknown) => input === null || typeof input === 'string'
+
+  return (
+    typeof record.id === 'number' &&
+    typeof record.status === 'string' &&
+    typeof record.k8s_job_name === 'string' &&
+    typeof record.k8s_pod_name === 'string' &&
+    isNullableString(record.started_at) &&
+    isNullableString(record.finished_at)
+  )
+}
+
+const isJobRecord = (value: unknown): value is JobRecord => {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+  const maybeLastRun = record.last_run
+
+  const isString = (input: unknown) => typeof input === 'string'
+
+  return (
+    typeof record.id === 'number' &&
+    isString(record.image) &&
+    isString(record.gpu_profile) &&
+    isString(record.submitted_at) &&
+    typeof record.created_by_id === 'number' &&
+    (maybeLastRun === undefined || maybeLastRun === null || isJobRun(maybeLastRun))
+  )
+}
+
+const fetchJobs = async (): Promise<JobRecord[]> => {
+  const response = await fetch(`${API_BASE}/jobs/`, {
     method: 'GET',
     credentials: 'include',
   })
 
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status})`)
+    throw new Error(`Jobs request failed (${response.status})`)
   }
 
-  return (await response.json()) as T
+  let payload: unknown
+
+  try {
+    payload = await response.json()
+  } catch {
+    throw new Error('Received unreadable jobs response. Please try again.')
+  }
+
+  if (!Array.isArray(payload) || !payload.every(isJobRecord)) {
+    throw new Error('Received malformed jobs response. Please contact support.')
+  }
+
+  return payload
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -74,21 +113,13 @@ const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message || 'Something went wrong.' : 'Something went wrong.'
 
 const Jobs = (): JSX.Element => {
-  const podsQuery = useQuery<RunningPod[], Error>({
-    queryKey: ['jobs', 'pods'],
-    queryFn: () => fetchJson<RunningPod[]>('/jobs/pods'),
-    staleTime: 7_500,
-    refetchInterval: 5_000,
-  })
-
   const jobsQuery = useQuery<JobRecord[], Error>({
     queryKey: ['jobs', 'list'],
-    queryFn: () => fetchJson<JobRecord[]>('/jobs/'),
+    queryFn: fetchJobs,
     staleTime: 10_000,
     refetchInterval: 7_500,
   })
 
-  const pods = podsQuery.data ?? []
   const jobs = jobsQuery.data ?? []
 
   const getStatusClassName = (status: string): string => {
@@ -101,54 +132,8 @@ const Jobs = (): JSX.Element => {
     <section className={styles.jobs}>
       <header className={styles.header}>
         <h1>Jobs</h1>
-        <p>Monitor active pods and recent job submissions.</p>
+        <p>Review recent jobs and inspect their most recent runs.</p>
       </header>
-
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <h2>Running Pods</h2>
-        </div>
-
-        {podsQuery.isPending ? (
-          <p className={styles.state}>Loading pods…</p>
-        ) : podsQuery.isError ? (
-          <p className={`${styles.state} ${styles.errorState}`}>
-            Failed to load pods: {getErrorMessage(podsQuery.error)}
-          </p>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <caption className="sr-only">Running pods</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Pod Name</th>
-                  <th scope="col">Namespace</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pods.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className={styles.emptyCell}>
-                      No running pods found.
-                    </td>
-                  </tr>
-                ) : (
-                  pods.map(({ name, namespace, status }) => (
-                    <tr key={`${namespace}-${name}`}>
-                      <td className={styles.monospace}>{name}</td>
-                      <td className={styles.monospace}>{namespace}</td>
-                      <td>
-                        <span className={getStatusClassName(status)}>{formatStatusLabel(status)}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
@@ -170,8 +155,8 @@ const Jobs = (): JSX.Element => {
                   <th scope="col">Job ID</th>
                   <th scope="col">Image</th>
                   <th scope="col">GPU Profile</th>
-                  <th scope="col">Submitted</th>
-                  <th scope="col">K8s Job</th>
+                  <th scope="col">Last Run Started</th>
+                  <th scope="col">Last Run Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,15 +167,26 @@ const Jobs = (): JSX.Element => {
                     </td>
                   </tr>
                 ) : (
-                  jobs.map(({ id, image, gpu_profile, submitted_at, k8s_job_name }) => (
-                    <tr key={id}>
-                      <td>#{id}</td>
-                      <td className={styles.monospace}>{image}</td>
-                      <td>{gpu_profile}</td>
-                      <td>{formatDateTime(submitted_at)}</td>
-                      <td className={styles.monospace}>{k8s_job_name}</td>
-                    </tr>
-                  ))
+                  jobs.map(({ id, image, gpu_profile, latest_run: lastRun }) => {
+                    const lastRunStatus = lastRun?.status
+                    const lastRunStarted = lastRun?.started_at ?? null
+
+                    return (
+                      <tr key={id}>
+                        <td>#{id}</td>
+                        <td className={styles.monospace}>{image}</td>
+                        <td>{gpu_profile}</td>
+                        <td>{formatDateTime(lastRunStarted)}</td>
+                        <td>
+                          {lastRunStatus ? (
+                            <span className={getStatusClassName(lastRunStatus)}>{formatStatusLabel(lastRunStatus)}</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
