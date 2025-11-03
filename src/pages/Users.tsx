@@ -4,6 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import styles from './Users.module.css'
 
 const API_BASE = '/api' as const
+const USERS_STALE_TIME_MS = 5_000
+const USERS_REFETCH_INTERVAL_MS = 15_000
 
 type UserRecord = {
   id: number
@@ -55,7 +57,9 @@ const Users = (): JSX.Element => {
   } = useQuery<UserRecord[], Error>({
     queryKey: ['users'],
     queryFn: fetchUsers,
-    staleTime: 5 * 60 * 1000,
+    staleTime: USERS_STALE_TIME_MS,
+    refetchInterval: USERS_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const [isInviteOpen, setInviteOpen] = useState(false)
