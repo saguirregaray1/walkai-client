@@ -5,6 +5,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import styles from './JobDetail.module.css'
 
 const API_BASE = '/api' as const
+const JOB_DETAIL_STALE_TIME_MS = 5_000
+const JOB_DETAIL_REFETCH_INTERVAL_MS = 5_000
 
 type VolumeInfo = {
   id: number
@@ -147,8 +149,9 @@ const JobDetail = (): JSX.Element => {
     queryKey: ['jobs', 'detail', jobId],
     queryFn: () => fetchJobDetail(jobId),
     enabled: Boolean(jobId),
-    staleTime: 10_000,
-    refetchInterval: 15_000,
+    staleTime: JOB_DETAIL_STALE_TIME_MS,
+    refetchInterval: JOB_DETAIL_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const job = jobQuery.data

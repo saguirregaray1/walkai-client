@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom'
 import styles from './Dashboard.module.css'
 
 const API_BASE = '/api' as const
+const DASHBOARD_STALE_TIME_MS = 4_000
+const DASHBOARD_REFETCH_INTERVAL_MS = 5_000
 
 const GPU_PROFILES = ['1g.10gb', '2g.20gb', '3g.40gb', '4g.40gb', '7g.79gb'] as const
 
@@ -189,15 +191,17 @@ const Dashboard = (): JSX.Element => {
   const resourcesQuery = useQuery<ClusterResource[], Error>({
     queryKey: ['cluster', 'resources'],
     queryFn: fetchClusterResources,
-    staleTime: 10_000,
-    refetchInterval: 10_000,
+    staleTime: DASHBOARD_STALE_TIME_MS,
+    refetchInterval: DASHBOARD_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const podsQuery = useQuery<ClusterPod[], Error>({
     queryKey: ['cluster', 'pods'],
     queryFn: fetchClusterPods,
-    staleTime: 10_000,
-    refetchInterval: 10_000,
+    staleTime: DASHBOARD_STALE_TIME_MS,
+    refetchInterval: DASHBOARD_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const resources = useMemo(() => {

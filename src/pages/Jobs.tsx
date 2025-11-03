@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import styles from './Jobs.module.css'
 
 const API_BASE = '/api' as const
+const JOBS_STALE_TIME_MS = 5_000
+const JOBS_REFETCH_INTERVAL_MS = 5_000
 
 type JobRun = {
   id: number
@@ -119,8 +121,9 @@ const Jobs = (): JSX.Element => {
   const jobsQuery = useQuery<JobRecord[], Error>({
     queryKey: ['jobs', 'list'],
     queryFn: fetchJobs,
-    staleTime: 10_000,
-    refetchInterval: 7_500,
+    staleTime: JOBS_STALE_TIME_MS,
+    refetchInterval: JOBS_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const jobs = jobsQuery.data ?? []

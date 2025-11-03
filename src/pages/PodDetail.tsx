@@ -5,6 +5,8 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import styles from './PodDetail.module.css'
 
 const API_BASE = '/api' as const
+const PODS_STALE_TIME_MS = 4_000
+const PODS_REFETCH_INTERVAL_MS = 5_000
 const GPU_PROFILES = ['1g.10gb', '2g.20gb', '3g.40gb', '4g.40gb', '7g.79gb'] as const
 const GPU_PROFILE_ORDER = new Map(GPU_PROFILES.map((profile, index) => [profile, index]))
 const MAX_LOG_LINES = 500
@@ -132,8 +134,9 @@ const PodDetail = (): JSX.Element => {
     queryKey: ['cluster', 'pods'],
     queryFn: fetchClusterPods,
     enabled: !statePod,
-    staleTime: 10_000,
-    refetchInterval: 10_000,
+    staleTime: PODS_STALE_TIME_MS,
+    refetchInterval: PODS_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
   })
 
   const pod = useMemo(() => {
