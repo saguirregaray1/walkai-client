@@ -206,6 +206,31 @@
   word-break: break-word;
 }
 
+.volumeActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.volumeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #e2e8f0;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.volumeLink:hover {
+  background: #cbd5f1;
+  transform: translateY(-1px);
+}
+
 .statusBadge {
   display: inline-flex;
   align-items: center;

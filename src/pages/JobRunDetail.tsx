@@ -315,29 +315,47 @@ const JobRunDetail = (): JSX.Element => {
                 <p className={styles.state}>No volumes were attached to this run.</p>
               ) : (
                 <div className={styles.volumeGrid}>
-                  {volumes.map(({ label, volume }) => (
-                    <article key={`${label}-${volume.id}`} className={styles.volumeCard}>
-                      <h3>{label}</h3>
-                      <dl>
-                        <div>
-                          <dt>PVC Name</dt>
-                          <dd className={styles.monospace}>{volume.pvc_name}</dd>
-                        </div>
-                        <div>
-                          <dt>Size (Gi)</dt>
-                          <dd>{volume.size}</dd>
-                        </div>
-                        <div>
-                          <dt>Key Prefix</dt>
-                          <dd className={styles.monospace}>{volume.key_prefix ?? '—'}</dd>
-                        </div>
-                        <div>
-                          <dt>Type</dt>
-                          <dd>{volume.is_input ? 'Input' : 'Output'}</dd>
-                        </div>
-                      </dl>
-                    </article>
-                  ))}
+                  {volumes.map(({ label, volume }) => {
+                    const volumeDetailsPath = jobId && runId ? `/app/jobs/${jobId}/runs/${runId}/volumes/${volume.id}` : null
+                    return (
+                      <article key={`${label}-${volume.id}`} className={styles.volumeCard}>
+                        <h3>{label}</h3>
+                        <dl>
+                          <div>
+                            <dt>PVC Name</dt>
+                            <dd className={styles.monospace}>{volume.pvc_name}</dd>
+                          </div>
+                          <div>
+                            <dt>Size (Gi)</dt>
+                            <dd>{volume.size}</dd>
+                          </div>
+                          <div>
+                            <dt>Key Prefix</dt>
+                            <dd className={styles.monospace}>{volume.key_prefix ?? '—'}</dd>
+                          </div>
+                          <div>
+                            <dt>Type</dt>
+                            <dd>{volume.is_input ? 'Input' : 'Output'}</dd>
+                          </div>
+                        </dl>
+                        {volumeDetailsPath ? (
+                          <div className={styles.volumeActions}>
+                            <Link
+                              to={volumeDetailsPath}
+                              state={{
+                                volume,
+                                jobId,
+                                runId,
+                              }}
+                              className={styles.volumeLink}
+                            >
+                              Browse objects
+                            </Link>
+                          </div>
+                        ) : null}
+                      </article>
+                    )
+                  })}
                 </div>
               )}
             </section>
