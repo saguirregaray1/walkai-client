@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { JSX } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import styles from './PodDetail.module.css'
 
 const API_BASE = '/api' as const
@@ -275,9 +275,6 @@ const PodDetail = (): JSX.Element => {
           <button type="button" className={styles.backButton} onClick={handleBack}>
             Back
           </button>
-          <Link to="/app/dashboard" className={styles.linkButton}>
-            View dashboard
-          </Link>
         </div>
       </header>
 

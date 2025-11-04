@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { JSX } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import styles from './JobDetail.module.css'
 
 const API_BASE = '/api' as const
@@ -150,9 +150,6 @@ const JobDetail = (): JSX.Element => {
           <button type="button" className={styles.backButton} onClick={handleBack}>
             Back
           </button>
-          <Link to="/app/jobs" className={styles.linkButton}>
-            View all jobs
-          </Link>
         </div>
       </header>
 

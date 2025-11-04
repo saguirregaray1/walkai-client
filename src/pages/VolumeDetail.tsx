@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import type { JSX } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import styles from './VolumeDetail.module.css'
 
 const API_BASE = '/api' as const
@@ -120,20 +120,14 @@ const getErrorMessage = (error: unknown, fallback: string): string =>
 const VolumeDetail = (): JSX.Element => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { jobId: routeJobId, runId: routeRunId, volumeId: routeVolumeId } = useParams<{
-    jobId: string
-    runId: string
+  const { volumeId: routeVolumeId } = useParams<{
     volumeId: string
   }>()
 
   const state = location.state as VolumeDetailState | undefined
   const volume = state?.volume
 
-  const jobId = routeJobId ?? state?.jobId ?? ''
-  const runId = routeRunId ?? state?.runId ?? ''
   const volumeId = routeVolumeId ?? (volume ? String(volume.id) : '')
-
-  const volumeDetailPath = jobId && runId ? `/app/jobs/${jobId}/runs/${runId}` : '/app/jobs'
 
   const volumeQuery = useInfiniteQuery<VolumeObjectsResponse, Error>({
     queryKey: ['volumes', 'objects', volumeId],
@@ -226,9 +220,6 @@ const VolumeDetail = (): JSX.Element => {
           <button type="button" className={styles.backButton} onClick={handleBack}>
             Back
           </button>
-          <Link to={volumeDetailPath} className={styles.linkButton}>
-            View run
-          </Link>
         </div>
       </header>
 

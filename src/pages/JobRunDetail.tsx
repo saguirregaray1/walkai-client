@@ -122,8 +122,6 @@ const JobRunDetail = (): JSX.Element => {
 
   const jobId = routeJobId ?? ''
   const runId = routeRunId ?? ''
-  const jobDetailPath = jobId ? `/app/jobs/${jobId}` : '/app/jobs'
-
   const runQuery = useQuery<JobRunDetailRecord, Error>({
     queryKey: ['jobs', 'detail', jobId, 'runs', runId],
     queryFn: () => fetchJobRunDetail(jobId, runId),
@@ -266,9 +264,6 @@ const JobRunDetail = (): JSX.Element => {
           <button type="button" className={styles.backButton} onClick={handleBack}>
             Back
           </button>
-          <Link to={jobDetailPath} className={styles.linkButton}>
-            View job
-          </Link>
         </div>
       </header>
 
