@@ -9,6 +9,7 @@ import ProtectedRoute from './components/protected route/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import JobDetail from './pages/JobDetail'
 import PodDetail from './pages/PodDetail'
+import JobRunDetail from './pages/JobRunDetail'
 
 const App = (): JSX.Element => {
   return (
@@ -29,6 +30,7 @@ const App = (): JSX.Element => {
         <Route path="users" element={<Users />} />
         <Route path="jobs" element={<Jobs />} />
         <Route path="jobs/:jobId" element={<JobDetail />} />
+        <Route path="jobs/:jobId/runs/:runId" element={<JobRunDetail />} />
         <Route path="pods/:podName" element={<PodDetail />} />
       </Route>
 
