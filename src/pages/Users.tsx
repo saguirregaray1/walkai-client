@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent, JSX, MouseEvent } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import styles from './Users.module.css'
@@ -64,6 +64,7 @@ const Users = (): JSX.Element => {
 
   const [isInviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteFeedback, setInviteFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const createInvitationMutation = useMutation<void, Error, string>({
     mutationFn: async (email) => {
@@ -86,6 +87,17 @@ const Users = (): JSX.Element => {
   })
 
   const isSubmittingInvite = createInvitationMutation.isPending
+
+  useEffect(() => {
+    if (!inviteFeedback) return
+    const timeoutId = window.setTimeout(() => {
+      setInviteFeedback(null)
+    }, 4000)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [inviteFeedback])
 
   const handleOpenInvite = () => {
     setInviteOpen(true)
@@ -113,12 +125,16 @@ const Users = (): JSX.Element => {
 
     try {
       await createInvitationMutation.mutateAsync(email)
-      alert('Invitation created')
+      setInviteFeedback({ type: 'success', message: 'Invitation created successfully.' })
       setInviteOpen(false)
       setInviteEmail('')
     } catch (error) {
       window.alert(getErrorMessage(error, 'Failed to send invitation. Please try again.'))
     }
+  }
+
+  const handleFeedbackDismiss = () => {
+    setInviteFeedback(null)
   }
 
   return (
@@ -133,6 +149,21 @@ const Users = (): JSX.Element => {
         </button>
       </header>
 
+      {inviteFeedback ? (
+        <div
+          className={`${styles.feedback} ${
+            inviteFeedback.type === 'success' ? styles.feedbackSuccess : styles.feedbackError
+          }`}
+          role={inviteFeedback.type === 'success' ? 'status' : 'alert'}
+          aria-live={inviteFeedback.type === 'success' ? 'polite' : 'assertive'}
+        >
+          <span>{inviteFeedback.message}</span>
+          <button type="button" className={styles.feedbackDismiss} onClick={handleFeedbackDismiss} aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+      ) : null}
+
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <caption className="sr-only">List of users</caption>
@@ -141,27 +172,24 @@ const Users = (): JSX.Element => {
               <th scope="col">User ID</th>
               <th scope="col">Email</th>
               <th scope="col">Role</th>
-              <th scope="col" className={styles.actionsHeader}>
-                Actions
-              </th>
             </tr>
           </thead>
           <tbody>
             {isLoadingUsers ? (
               <tr>
-                <td colSpan={4} className={styles.tableMessage}>
+                <td colSpan={3} className={styles.tableMessage}>
                   Loading users...
                 </td>
               </tr>
             ) : isUsersError ? (
               <tr>
-                <td colSpan={4} className={styles.tableMessageError}>
+                <td colSpan={3} className={styles.tableMessageError}>
                   {getErrorMessage(usersError, 'Unable to load users. Please try again later.')}
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={4} className={styles.tableMessage}>
+                <td colSpan={3} className={styles.tableMessage}>
                   No users found.
                 </td>
               </tr>
@@ -171,12 +199,6 @@ const Users = (): JSX.Element => {
                   <td>{id}</td>
                   <td>{email}</td>
                   <td>{role}</td>
-                  <td className={styles.actionsCell}>
-                    <button type="button">Edit</button>
-                    <button type="button" className={styles.danger}>
-                      Remove
-                    </button>
-                  </td>
                 </tr>
               ))
             )}
