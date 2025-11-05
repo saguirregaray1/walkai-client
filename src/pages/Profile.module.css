@@ -180,6 +180,16 @@
   font-size: 0.875rem;
 }
 
+.tokenNotice a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.tokenNotice a:hover {
+  text-decoration-thickness: 2px;
+}
+
 .tokenNoticeClose {
   position: relative;
   width: 1.75rem;

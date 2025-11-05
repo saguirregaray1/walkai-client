@@ -135,6 +135,7 @@ const Profile = (): JSX.Element => {
   const [tokenNameError, setTokenNameError] = useState<string | null>(null)
   const [generatedTokenValue, setGeneratedTokenValue] = useState<string | null>(null)
   const [confirmingTokenId, setConfirmingTokenId] = useState<number | null>(null)
+  const [isEmptyTokensNoticeDismissed, setEmptyTokensNoticeDismissed] = useState(false)
 
   const sessionQuery = useQuery<SessionUser, Error>({
     queryKey: ['session'],
@@ -214,6 +215,7 @@ const Profile = (): JSX.Element => {
   const isDeletingToken = deleteTokenMutation.isPending
   const deletingTokenId = isDeletingToken ? deleteTokenMutation.variables : null
   const handleDismissGeneratedToken = () => setGeneratedTokenValue(null)
+  const handleDismissEmptyTokensNotice = () => setEmptyTokensNoticeDismissed(true)
 
   return (
     <section className={styles.profile}>
@@ -305,7 +307,34 @@ const Profile = (): JSX.Element => {
                 {getErrorMessage(tokensQuery.error, 'Unable to load tokens. Please refresh.')}
               </p>
             ) : tokens.length === 0 ? (
-              <p className={styles.muted}>No tokens yet. Create one to get started.</p>
+              <>
+                {!isEmptyTokensNoticeDismissed ? (
+                  <div className={styles.tokenNotice} role="status">
+                    <div className={styles.tokenNoticeHeader}>
+                      <strong>Need CLI access?</strong>
+                      <button
+                        type="button"
+                        className={styles.tokenNoticeClose}
+                        onClick={handleDismissEmptyTokensNotice}
+                        aria-label="Dismiss CLI setup notice"
+                      />
+                    </div>
+                    <p>
+                      Haven&apos;t set up the Walk:AI CLI yet? Create a new personal access token and follow the
+                      instructions at{' '}
+                      <a
+                        href="https://github.com/walkai-org/walkai-cli?tab=readme-ov-file#walkai-cli"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        walkai-cli README
+                      </a>
+                      .
+                    </p>
+                  </div>
+                ) : null}
+                <p className={styles.muted}>No tokens yet. Create one to get started.</p>
+              </>
             ) : (
               <ul className={styles.tokens} aria-live="polite">
                 {tokens.map((token) => (
