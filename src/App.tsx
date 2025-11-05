@@ -11,6 +11,7 @@ import JobDetail from './pages/JobDetail'
 import PodDetail from './pages/PodDetail'
 import JobRunDetail from './pages/JobRunDetail'
 import VolumeDetail from './pages/VolumeDetail'
+import Profile from './pages/Profile'
 
 const App = (): JSX.Element => {
   return (
@@ -34,6 +35,7 @@ const App = (): JSX.Element => {
         <Route path="jobs/:jobId/runs/:runId" element={<JobRunDetail />} />
         <Route path="jobs/:jobId/runs/:runId/volumes/:volumeId" element={<VolumeDetail />} />
         <Route path="pods/:podName" element={<PodDetail />} />
+        <Route path="profile" element={<Profile />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
