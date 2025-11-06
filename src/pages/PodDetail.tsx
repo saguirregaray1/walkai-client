@@ -2,16 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { JSX } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { GPU_PROFILE_ORDER, formatGpuLabel, getProfileOrder, type GPUProfile } from '../constants/gpuProfiles'
 import styles from './PodDetail.module.css'
 
 const API_BASE = '/api' as const
 const PODS_STALE_TIME_MS = 4_000
 const PODS_REFETCH_INTERVAL_MS = 5_000
-const GPU_PROFILES = ['1g.10gb', '2g.20gb', '3g.40gb', '4g.40gb', '7g.79gb'] as const
-const GPU_PROFILE_ORDER = new Map(GPU_PROFILES.map((profile, index) => [profile, index]))
 const MAX_LOG_LINES = 500
-
-type GPUProfile = (typeof GPU_PROFILES)[number]
 
 type ClusterPod = {
   name: string
@@ -25,10 +22,6 @@ type ClusterPod = {
 type PodDetailLocationState = {
   pod?: ClusterPod
 }
-
-const getProfileOrder = (profile: GPUProfile): number => GPU_PROFILE_ORDER.get(profile) ?? GPU_PROFILES.length
-
-const formatGpuLabel = (gpu: GPUProfile): string => gpu.replace(/gb$/i, '')
 
 const formatStatusLabel = (status: string): string =>
   status
