@@ -1,11 +1,14 @@
-import { useQuery } from '@tanstack/react-query'
-import type { JSX, KeyboardEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { GPU_PROFILES, type GPUProfile } from '../constants/gpuProfiles'
 import styles from './Jobs.module.css'
 
 const API_BASE = '/api' as const
 const JOBS_STALE_TIME_MS = 5_000
 const JOBS_REFETCH_INTERVAL_MS = 5_000
+const JOB_IMAGES_STALE_TIME_MS = 60_000
 
 type JobRun = {
   id: number
@@ -24,6 +27,23 @@ type JobRecord = {
   created_by_id: number
   latest_run: JobRun | null | undefined
 }
+
+type JobImageOption = {
+  image: string
+  tag: string
+  digest: string
+  pushed_at: string
+}
+
+type JobSubmissionPayload = {
+  image: string
+  gpu: GPUProfile
+  storage: number
+}
+
+const DEFAULT_STORAGE_GB = 1
+const SUCCESS_MESSAGE_TIMEOUT_MS = 4_000
+const DEFAULT_GPU_PROFILE = (GPU_PROFILES.find((profile) => profile === '1g.10gb') ?? GPU_PROFILES[0]) as GPUProfile
 
 const isJobRun = (value: unknown): value is JobRun => {
   if (!value || typeof value !== 'object') return false
@@ -83,6 +103,64 @@ const fetchJobs = async (): Promise<JobRecord[]> => {
   return payload
 }
 
+const isJobImageOption = (value: unknown): value is JobImageOption => {
+  if (!value || typeof value !== 'object') return false
+  const record = value as Record<string, unknown>
+
+  return (
+    typeof record.image === 'string' &&
+    typeof record.tag === 'string' &&
+    typeof record.digest === 'string' &&
+    typeof record.pushed_at === 'string'
+  )
+}
+
+const fetchJobImages = async (): Promise<JobImageOption[]> => {
+  const response = await fetch(`${API_BASE}/jobs/images`, {
+    method: 'GET',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    let detail = 'Failed to load job images. Please try again.'
+    try {
+      const payload = (await response.json()) as { detail?: unknown }
+      const errorDetail = payload?.detail
+      if (typeof errorDetail === 'string' && errorDetail.trim()) {
+        detail = errorDetail
+      } else if (Array.isArray(errorDetail)) {
+        const message = errorDetail
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null
+            const maybeRecord = item as { msg?: unknown }
+            return typeof maybeRecord.msg === 'string' ? maybeRecord.msg : null
+          })
+          .filter((msg): msg is string => Boolean(msg))
+          .join('\n')
+        if (message) {
+          detail = message
+        }
+      }
+    } catch {
+      // ignore JSON parsing errors from error responses
+    }
+    throw new Error(detail)
+  }
+
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    throw new Error('Received unreadable job images response. Please try again.')
+  }
+
+  if (!Array.isArray(payload) || !payload.every(isJobImageOption)) {
+    throw new Error('Received malformed job images response. Please contact support.')
+  }
+
+  return payload
+}
+
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -117,6 +195,7 @@ const getErrorMessage = (error: unknown): string =>
 
 const Jobs = (): JSX.Element => {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const jobsQuery = useQuery<JobRecord[], Error>({
     queryKey: ['jobs', 'list'],
@@ -126,13 +205,226 @@ const Jobs = (): JSX.Element => {
     refetchIntervalInBackground: true,
   })
 
+  const jobImagesQuery = useQuery<JobImageOption[], Error>({
+    queryKey: ['jobs', 'images'],
+    queryFn: fetchJobImages,
+    staleTime: JOB_IMAGES_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  })
+
+  const [imageInput, setImageInput] = useState('')
+  const [gpuProfile, setGpuProfile] = useState<GPUProfile>(DEFAULT_GPU_PROFILE)
+  const [storageInput, setStorageInput] = useState(String(DEFAULT_STORAGE_GB))
+  const [formError, setFormError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isRegistryModalOpen, setIsRegistryModalOpen] = useState(false)
+  const [registrySearchTerm, setRegistrySearchTerm] = useState('')
+
+  const createJobMutation = useMutation<void, Error, JobSubmissionPayload>({
+    mutationFn: async ({ image, gpu, storage }) => {
+      const response = await fetch(`${API_BASE}/jobs/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ image, gpu, storage }),
+      })
+
+      if (!response.ok) {
+        let detail = `Failed to submit job (status ${response.status}).`
+        try {
+          const payload = (await response.json()) as { detail?: unknown }
+          const errorDetail = payload?.detail
+          if (typeof errorDetail === 'string' && errorDetail.trim()) {
+            detail = errorDetail
+          } else if (Array.isArray(errorDetail)) {
+            const message = errorDetail
+              .map((item) => {
+                if (!item || typeof item !== 'object') return null
+                const maybeRecord = item as { msg?: unknown }
+                return typeof maybeRecord.msg === 'string' ? maybeRecord.msg : null
+              })
+              .filter((msg): msg is string => Boolean(msg))
+              .join('\n')
+            if (message) {
+              detail = message
+            }
+          }
+        } catch {
+          // ignore JSON parsing errors from error responses
+        }
+        throw new Error(detail)
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['jobs', 'list'] })
+    },
+  })
+
   const jobs = jobsQuery.data ?? []
+  const jobImageOptions = useMemo(() => jobImagesQuery.data ?? [], [jobImagesQuery.data])
+  const isSubmittingJob = createJobMutation.isPending
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const registrySearchInputRef = useRef<HTMLInputElement | null>(null)
+  const trimmedImageInput = imageInput.trim()
+  const filteredRegistryOptions = useMemo(() => {
+    const query = registrySearchTerm.trim().toLowerCase()
+    if (!query) return jobImageOptions
+    return jobImageOptions.filter((option) => {
+      const image = option.image.toLowerCase()
+      const tag = option.tag.toLowerCase()
+      return image.includes(query) || tag.includes(query)
+    })
+  }, [jobImageOptions, registrySearchTerm])
+  const isRegistryAvailable = jobImageOptions.length > 0
+
+  useEffect(() => {
+    if (!successMessage) return undefined
+    const timerId = window.setTimeout(() => {
+      setSuccessMessage(null)
+    }, SUCCESS_MESSAGE_TIMEOUT_MS)
+
+    return () => {
+      window.clearTimeout(timerId)
+    }
+  }, [successMessage])
+
+  useEffect(() => {
+    if (!isModalOpen) return
+    window.setTimeout(() => {
+      imageInputRef.current?.focus()
+    }, 0)
+  }, [isModalOpen])
+
+  useEffect(() => {
+    if (!isRegistryModalOpen) return
+    window.setTimeout(() => {
+      registrySearchInputRef.current?.focus()
+    }, 0)
+  }, [isRegistryModalOpen])
 
   const getStatusClassName = (status: string): string => {
     const key = getStatusStyleKey(status)
     const modifier = styles[key] ?? styles.unknown
     return `${styles.statusBadge} ${modifier}`.trim()
   }
+
+  const imageHintMessage = jobImagesQuery.isPending
+    ? 'Loading registry images…'
+    : jobImagesQuery.isError
+      ? `Registry suggestions unavailable: ${getErrorMessage(jobImagesQuery.error)}`
+      : 'Provide an image reference or browse the registry.';
+
+  const imageHintClassName = jobImagesQuery.isError
+    ? `${styles.fieldHint} ${styles.fieldHintError}`.trim()
+    : styles.fieldHint
+
+  const resetFormState = () => {
+    setFormError(null)
+    setGpuProfile(DEFAULT_GPU_PROFILE)
+    setStorageInput(String(DEFAULT_STORAGE_GB))
+    setImageInput('')
+    setRegistrySearchTerm('')
+    setIsRegistryModalOpen(false)
+  }
+
+  const handleOpenModal = () => {
+    resetFormState()
+    createJobMutation.reset()
+    setIsModalOpen(true)
+    if (successMessage) setSuccessMessage(null)
+  }
+
+  const handleCloseModal = () => {
+    if (isSubmittingJob) return
+    setIsModalOpen(false)
+    setIsRegistryModalOpen(false)
+    setFormError(null)
+  }
+
+  const handleOverlayClick = () => {
+    if (isSubmittingJob) return
+    handleCloseModal()
+  }
+
+  const handleModalClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+  }
+
+  const handleImageInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setImageInput(event.target.value)
+    if (formError) setFormError(null)
+    if (successMessage) setSuccessMessage(null)
+  }
+
+  const handleOpenRegistryModal = () => {
+    if (jobImagesQuery.isError || jobImagesQuery.isPending) return
+    if (jobImageOptions.length === 0) return
+    setRegistrySearchTerm('')
+    setIsRegistryModalOpen(true)
+  }
+
+  const handleCloseRegistryModal = () => {
+    setIsRegistryModalOpen(false)
+  }
+
+  const handleRegistrySearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setRegistrySearchTerm(event.target.value)
+  }
+
+  const handleRegistryOptionSelect = (value: string) => {
+    setImageInput(value)
+    setIsRegistryModalOpen(false)
+    if (formError) setFormError(null)
+    if (successMessage) setSuccessMessage(null)
+    window.setTimeout(() => {
+      imageInputRef.current?.focus()
+    }, 0)
+  }
+
+  const handleGpuChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setGpuProfile(event.target.value as GPUProfile)
+    if (successMessage) setSuccessMessage(null)
+  }
+
+  const handleStorageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setStorageInput(event.target.value)
+    if (formError) setFormError(null)
+    if (successMessage) setSuccessMessage(null)
+  }
+
+  const handleJobSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (isSubmittingJob) return
+
+    const trimmedImage = trimmedImageInput
+    if (!trimmedImage) {
+      setFormError('Image is required.')
+      return
+    }
+
+    const parsedStorage = Number(storageInput)
+    if (!Number.isInteger(parsedStorage) || parsedStorage < 1) {
+      setFormError('Storage must be a positive whole number.')
+      return
+    }
+
+    try {
+      await createJobMutation.mutateAsync({ image: trimmedImage, gpu: gpuProfile, storage: parsedStorage })
+      setSuccessMessage('Job submitted successfully.')
+      setIsModalOpen(false)
+      setIsRegistryModalOpen(false)
+      setFormError(null)
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : 'Failed to submit job. Please try again.'
+      setFormError(message)
+      setSuccessMessage(null)
+    }
+  }
+
 
   const handleRowNavigate = (jobId: number) => {
     navigate(`/app/jobs/${jobId}`)
@@ -155,7 +447,16 @@ const Jobs = (): JSX.Element => {
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
           <h2>Jobs</h2>
+          <button type="button" className={styles.primaryAction} onClick={handleOpenModal}>
+            Submit Job
+          </button>
         </div>
+
+        {successMessage ? (
+          <div className={`${styles.formFeedback} ${styles.formFeedbackSuccess}`} role="status" aria-live="polite">
+            {successMessage}
+          </div>
+        ) : null}
 
         {jobsQuery.isPending ? (
           <p className={styles.state}>Loading jobs…</p>
@@ -217,7 +518,198 @@ const Jobs = (): JSX.Element => {
             </table>
           </div>
         )}
+
+        {isModalOpen ? (
+          <div className={styles.modalOverlay} onClick={handleOverlayClick}>
+            <div
+              className={styles.modal}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="submit-job-modal-title"
+              onClick={handleModalClick}
+            >
+              <header className={styles.modalHeader}>
+                <div>
+                  <h2 id="submit-job-modal-title">Submit Job</h2>
+                  <p className={styles.modalDescription}>
+                    Define the runtime image, GPU profile, and storage requirements for your workload.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className={styles.closeButton}
+                  onClick={handleCloseModal}
+                  disabled={isSubmittingJob}
+                  aria-label="Close submit job modal"
+                >
+                  ×
+                </button>
+              </header>
+
+              {formError ? (
+                <div className={`${styles.formFeedback} ${styles.formFeedbackError}`} role="alert">
+                  {formError}
+                </div>
+              ) : null}
+
+              <form className={styles.jobForm} onSubmit={handleJobSubmit} noValidate>
+                <div className={styles.formGrid}>
+                  <label className={`${styles.formField} ${styles.fullWidthField}`}>
+                    <span className={styles.fieldLabel}>Container image</span>
+                    <div className={styles.imageFieldRow}>
+                      <input
+                        ref={imageInputRef}
+                        type="text"
+                        name="image"
+                        value={imageInput}
+                        onChange={handleImageInputChange}
+                        className={styles.fieldControl}
+                        placeholder="registry/repository:tag"
+                        autoComplete="off"
+                        disabled={isSubmittingJob}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className={styles.registryButton}
+                        onClick={handleOpenRegistryModal}
+                        disabled={
+                          isSubmittingJob || !isRegistryAvailable || jobImagesQuery.isPending || jobImagesQuery.isError
+                        }
+                      >
+                        Browse Registry
+                      </button>
+                    </div>
+                    <span className={imageHintClassName}>{imageHintMessage}</span>
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span className={styles.fieldLabel}>GPU profile</span>
+                    <select
+                      name="gpu"
+                      value={gpuProfile}
+                      onChange={handleGpuChange}
+                      className={styles.fieldControl}
+                      disabled={isSubmittingJob}
+                      required
+                    >
+                      {GPU_PROFILES.map((profile) => (
+                        <option key={profile} value={profile}>
+                          {profile}
+                        </option>
+                      ))}
+                    </select>
+                    <span className={styles.fieldHint}>MiG slice that will be requested for the job.</span>
+                  </label>
+
+                  <label className={styles.formField}>
+                    <span className={styles.fieldLabel}>Storage (GB)</span>
+                    <input
+                      type="number"
+                      name="storage"
+                      min={1}
+                      step={1}
+                      inputMode="numeric"
+                      value={storageInput}
+                      onChange={handleStorageChange}
+                      className={styles.fieldControl}
+                      placeholder={String(DEFAULT_STORAGE_GB)}
+                      disabled={isSubmittingJob}
+                      required
+                    />
+                    <span className={styles.fieldHint}>Requested storage capacity for the job output.</span>
+                  </label>
+                </div>
+
+                <footer className={styles.modalFooter}>
+                  <button
+                    type="button"
+                    className={styles.secondaryAction}
+                    onClick={handleCloseModal}
+                    disabled={isSubmittingJob}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className={styles.submitButton} disabled={isSubmittingJob}>
+                    {isSubmittingJob ? 'Submitting…' : 'Submit Job'}
+                  </button>
+                </footer>
+              </form>
+            </div>
+          </div>
+        ) : null}
       </section>
+
+      {isRegistryModalOpen ? (
+        <div
+          className={styles.registryModalOverlay}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="registry-modal-title"
+          onClick={handleCloseRegistryModal}
+        >
+          <div className={styles.registryModal} onClick={(event) => event.stopPropagation()}>
+            <header className={styles.registryHeader}>
+              <h3 id="registry-modal-title">Browse Registry Images</h3>
+              <button
+                type="button"
+                className={styles.registryCloseButton}
+                onClick={handleCloseRegistryModal}
+                aria-label="Close registry browser"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className={styles.registryBody}>
+              <div className={styles.registrySearch}>
+                <label htmlFor="registry-image-search">Filter images</label>
+                <input
+                  id="registry-image-search"
+                  ref={registrySearchInputRef}
+                  type="search"
+                  value={registrySearchTerm}
+                  placeholder="Search by tag or image name"
+                  onChange={handleRegistrySearchChange}
+                />
+              </div>
+
+              {jobImagesQuery.isPending ? (
+                <p className={styles.registryStatus}>Loading registry images…</p>
+              ) : jobImagesQuery.isError ? (
+                <p className={`${styles.registryStatus} ${styles.registryStatusError}`}>
+                  {getErrorMessage(jobImagesQuery.error)}
+                </p>
+              ) : filteredRegistryOptions.length === 0 ? (
+                <p className={styles.registryEmpty}>No registry images match your search.</p>
+              ) : (
+                <div className={styles.registryScrollArea}>
+                  <ul className={styles.registryList}>
+                    {filteredRegistryOptions.map((option) => {
+                      const truncatedDigest = option.digest.startsWith('sha256:')
+                        ? option.digest.slice(7, 19)
+                        : option.digest.slice(0, 12)
+                      return (
+                        <li key={option.image} className={styles.registryItem}>
+                          <button
+                            type="button"
+                            className={styles.registrySelectButton}
+                            onClick={() => handleRegistryOptionSelect(option.image)}
+                          >
+                            <span className={styles.registryPrimary}>{option.tag || 'untagged'}</span>
+                            <span className={styles.registrySecondary}>{option.image}</span>
+                            <span className={styles.registryMeta}>Digest: {truncatedDigest}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
