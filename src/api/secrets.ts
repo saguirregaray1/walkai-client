@@ -109,3 +109,36 @@ export const createSecret = async ({ name, data }: CreateSecretPayload): Promise
     throw new Error(detail)
   }
 }
+
+export const deleteSecret = async (secretName: string): Promise<void> => {
+  const response = await fetch(`${API_BASE}/secrets/${encodeURIComponent(secretName)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    let detail = `Failed to delete secret (status ${response.status}).`
+    try {
+      const payload = (await response.json()) as { detail?: unknown }
+      const errorDetail = payload?.detail
+      if (typeof errorDetail === 'string' && errorDetail.trim()) {
+        detail = errorDetail
+      } else if (Array.isArray(errorDetail)) {
+        const message = errorDetail
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null
+            const maybeRecord = item as { msg?: unknown }
+            return typeof maybeRecord.msg === 'string' ? maybeRecord.msg : null
+          })
+          .filter((msg): msg is string => Boolean(msg))
+          .join('\n')
+        if (message) {
+          detail = message
+        }
+      }
+    } catch {
+      // ignore JSON parsing errors from error responses
+    }
+    throw new Error(detail)
+  }
+}

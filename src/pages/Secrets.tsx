@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent, JSX, MouseEvent } from 'react'
-import { createSecret, fetchSecretDetail, fetchSecrets, type SecretDetail, type SecretSummary } from '../api/secrets'
+import { createSecret, deleteSecret, fetchSecretDetail, fetchSecrets, type SecretDetail, type SecretSummary } from '../api/secrets'
 import styles from './Secrets.module.css'
 
 const SECRETS_STALE_TIME_MS = 60_000
@@ -44,7 +44,10 @@ const Secrets = (): JSX.Element => {
   const [secretEntries, setSecretEntries] = useState<SecretEntry[]>([createEmptySecretEntry()])
   const [formError, setFormError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<SecretFeedback | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const modalNameInputRef = useRef<HTMLInputElement | null>(null)
+  const deleteModalPrimaryButtonRef = useRef<HTMLButtonElement | null>(null)
 
   const secretDetailQuery = useQuery<SecretDetail, Error>({
     queryKey: ['secrets', 'detail', selectedSecretName],
@@ -61,6 +64,9 @@ const Secrets = (): JSX.Element => {
 
   const createSecretMutation = useMutation<void, Error, { name: string; data: Record<string, string> }>({
     mutationFn: createSecret,
+  })
+  const deleteSecretMutation = useMutation<void, Error, string>({
+    mutationFn: deleteSecret,
   })
 
   const availableSecrets = secretsQuery.data ?? []
@@ -101,6 +107,16 @@ const Secrets = (): JSX.Element => {
     }
   }, [isCreateModalOpen])
 
+  useEffect(() => {
+    if (!isDeleteModalOpen) return undefined
+    const rafId = window.requestAnimationFrame(() => {
+      deleteModalPrimaryButtonRef.current?.focus()
+    })
+    return () => {
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [isDeleteModalOpen])
+
   const resetCreateForm = () => {
     setSecretNameInput('')
     setSecretEntries([createEmptySecretEntry()])
@@ -127,6 +143,16 @@ const Secrets = (): JSX.Element => {
   }
 
   const handleModalClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation()
+  }
+
+  const handleDeleteModalOverlayClick = () => {
+    if (deleteSecretMutation.isPending) return
+    setIsDeleteModalOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const handleDeleteModalClick = (event: MouseEvent<HTMLDivElement>) => {
     event.stopPropagation()
   }
 
@@ -185,6 +211,28 @@ const Secrets = (): JSX.Element => {
       resetCreateForm()
     } catch (error) {
       setFormError(getErrorMessage(error, 'Failed to create secret. Please try again.'))
+    }
+  }
+
+  const handleDeleteSecretRequest = () => {
+    if (!selectedSecretName) return
+    setDeleteTarget(selectedSecretName)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDeleteSecret = async () => {
+    if (!deleteTarget || deleteSecretMutation.isPending) return
+
+    try {
+      await deleteSecretMutation.mutateAsync(deleteTarget)
+      await queryClient.invalidateQueries({ queryKey: ['secrets', 'list'] })
+      queryClient.removeQueries({ queryKey: ['secrets', 'detail', deleteTarget], exact: true })
+      setSelectedSecretName(null)
+      setFeedback({ type: 'success', message: `Secret “${deleteTarget}” deleted.` })
+      setIsDeleteModalOpen(false)
+      setDeleteTarget(null)
+    } catch (error) {
+      setFeedback({ type: 'error', message: getErrorMessage(error, 'Failed to delete secret. Please try again.') })
     }
   }
 
@@ -279,8 +327,20 @@ const Secrets = (): JSX.Element => {
 
         <section className={styles.detailCard} aria-live="polite">
           <div className={styles.cardHeader}>
-            <h2>{selectedSecretName ? selectedSecretName : 'Secret details'}</h2>
-            {selectedSecretName ? <span className={styles.cardMeta}>Keys</span> : null}
+            <div className={styles.cardTitleGroup}>
+              <h2>{selectedSecretName ? selectedSecretName : 'Secret details'}</h2>
+              {selectedSecretName ? <span className={styles.cardMeta}>Keys</span> : null}
+            </div>
+            {selectedSecretName ? (
+              <button
+                type="button"
+                className={styles.dangerAction}
+                onClick={handleDeleteSecretRequest}
+                disabled={deleteSecretMutation.isPending}
+              >
+                Delete Secret
+              </button>
+            ) : null}
           </div>
           {detailContent}
         </section>
@@ -398,6 +458,57 @@ const Secrets = (): JSX.Element => {
                 </button>
               </footer>
             </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isDeleteModalOpen && deleteTarget ? (
+        <div className={styles.modalOverlay} role="presentation" onClick={handleDeleteModalOverlayClick}>
+          <div
+            className={`${styles.modal} ${styles.confirmModal}`.trim()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-secret-title"
+            onClick={handleDeleteModalClick}
+          >
+            <header className={styles.modalHeader}>
+              <div>
+                <h2 id="delete-secret-title">Delete Secret</h2>
+                <p className={styles.modalDescription}>This action cannot be undone.</p>
+              </div>
+              <button
+                type="button"
+                className={styles.closeButton}
+                onClick={handleDeleteModalOverlayClick}
+                aria-label="Close delete secret modal"
+                disabled={deleteSecretMutation.isPending}
+              >
+                ×
+              </button>
+            </header>
+            <p className={styles.confirmMessage}>
+              Are you sure you want to delete <strong>{deleteTarget}</strong>? Jobs referencing this secret will no longer
+              receive its values.
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.secondaryAction}
+                onClick={handleDeleteModalOverlayClick}
+                disabled={deleteSecretMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                ref={deleteModalPrimaryButtonRef}
+                className={styles.dangerAction}
+                onClick={handleConfirmDeleteSecret}
+                disabled={deleteSecretMutation.isPending}
+              >
+                {deleteSecretMutation.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
