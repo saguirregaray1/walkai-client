@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchSecretDetail, fetchSecrets, type SecretSummary } from '../api/secrets'
 import { GPU_PROFILES, type GPUProfile } from '../constants/gpuProfiles'
 import styles from './Jobs.module.css'
 
@@ -39,11 +40,14 @@ type JobSubmissionPayload = {
   image: string
   gpu: GPUProfile
   storage: number
+  secretNames: string[]
 }
 
 const DEFAULT_STORAGE_GB = 1
 const SUCCESS_MESSAGE_TIMEOUT_MS = 4_000
 const DEFAULT_GPU_PROFILE = (GPU_PROFILES.find((profile) => profile === '1g.10gb') ?? GPU_PROFILES[0]) as GPUProfile
+const SECRETS_STALE_TIME_MS = 60_000
+const SECRET_DETAILS_STALE_TIME_MS = 60_000
 
 const isJobRun = (value: unknown): value is JobRun => {
   if (!value || typeof value !== 'object') return false
@@ -212,9 +216,17 @@ const Jobs = (): JSX.Element => {
     refetchOnWindowFocus: false,
   })
 
+  const secretsQuery = useQuery<SecretSummary[], Error>({
+    queryKey: ['secrets', 'list'],
+    queryFn: fetchSecrets,
+    staleTime: SECRETS_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  })
+
   const [imageInput, setImageInput] = useState('')
   const [gpuProfile, setGpuProfile] = useState<GPUProfile>(DEFAULT_GPU_PROFILE)
   const [storageInput, setStorageInput] = useState(String(DEFAULT_STORAGE_GB))
+  const [selectedSecretNames, setSelectedSecretNames] = useState<string[]>([])
   const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -222,12 +234,17 @@ const Jobs = (): JSX.Element => {
   const [registrySearchTerm, setRegistrySearchTerm] = useState('')
 
   const createJobMutation = useMutation<void, Error, JobSubmissionPayload>({
-    mutationFn: async ({ image, gpu, storage }) => {
+    mutationFn: async ({ image, gpu, storage, secretNames }) => {
+      const payload: Record<string, unknown> = { image, gpu, storage }
+      if (secretNames.length > 0) {
+        payload.secret_names = secretNames
+      }
+
       const response = await fetch(`${API_BASE}/jobs/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ image, gpu, storage }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -263,6 +280,7 @@ const Jobs = (): JSX.Element => {
 
   const jobs = jobsQuery.data ?? []
   const jobImageOptions = useMemo(() => jobImagesQuery.data ?? [], [jobImagesQuery.data])
+  const availableSecrets = secretsQuery.data ?? []
   const isSubmittingJob = createJobMutation.isPending
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const registrySearchInputRef = useRef<HTMLInputElement | null>(null)
@@ -277,6 +295,19 @@ const Jobs = (): JSX.Element => {
     })
   }, [jobImageOptions, registrySearchTerm])
   const isRegistryAvailable = jobImageOptions.length > 0
+  const selectedSecretDetailQueries = useQueries({
+    queries: selectedSecretNames.map((secretName) => ({
+      queryKey: ['secrets', 'detail', secretName],
+      queryFn: () => fetchSecretDetail(secretName),
+      staleTime: SECRET_DETAILS_STALE_TIME_MS,
+      refetchOnWindowFocus: false,
+      enabled: isModalOpen,
+    })),
+  })
+  const selectedSecretDetails = selectedSecretNames.map((secretName, index) => ({
+    secretName,
+    query: selectedSecretDetailQueries[index],
+  }))
 
   useEffect(() => {
     if (!successMessage) return undefined
@@ -324,6 +355,7 @@ const Jobs = (): JSX.Element => {
     setGpuProfile(DEFAULT_GPU_PROFILE)
     setStorageInput(String(DEFAULT_STORAGE_GB))
     setImageInput('')
+    setSelectedSecretNames([])
     setRegistrySearchTerm('')
     setIsRegistryModalOpen(false)
   }
@@ -393,6 +425,18 @@ const Jobs = (): JSX.Element => {
     if (successMessage) setSuccessMessage(null)
   }
 
+  const handleSecretToggle = (event: ChangeEvent<HTMLInputElement>, secretName: string) => {
+    const { checked } = event.target
+    setSelectedSecretNames((prev) => {
+      if (checked) {
+        if (prev.includes(secretName)) return prev
+        return [...prev, secretName]
+      }
+      return prev.filter((name) => name !== secretName)
+    })
+    if (successMessage) setSuccessMessage(null)
+  }
+
   const handleJobSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (isSubmittingJob) return
@@ -410,11 +454,17 @@ const Jobs = (): JSX.Element => {
     }
 
     try {
-      await createJobMutation.mutateAsync({ image: trimmedImage, gpu: gpuProfile, storage: parsedStorage })
+      await createJobMutation.mutateAsync({
+        image: trimmedImage,
+        gpu: gpuProfile,
+        storage: parsedStorage,
+        secretNames: selectedSecretNames,
+      })
       setSuccessMessage('Job submitted successfully.')
       setIsModalOpen(false)
       setIsRegistryModalOpen(false)
       setFormError(null)
+      setSelectedSecretNames([])
     } catch (error) {
       const message =
         error instanceof Error && error.message.trim()
@@ -619,6 +669,74 @@ const Jobs = (): JSX.Element => {
                     />
                     <span className={styles.fieldHint}>Requested storage capacity for the job output.</span>
                   </label>
+
+                  <div className={`${styles.formField} ${styles.fullWidthField}`}>
+                    <span className={styles.fieldLabel}>Secrets (optional)</span>
+                    <span className={styles.fieldHint}>Attach managed secrets that should be available to this job.</span>
+
+                    {secretsQuery.isPending ? (
+                      <p className={styles.secretFieldStatus}>Loading secrets…</p>
+                    ) : secretsQuery.isError ? (
+                      <p className={`${styles.secretFieldStatus} ${styles.secretFieldStatusError}`}>
+                        Failed to load secrets: {getErrorMessage(secretsQuery.error)}
+                      </p>
+                    ) : availableSecrets.length === 0 ? (
+                      <p className={styles.fieldHint}>No secrets are available to attach.</p>
+                    ) : (
+                      <div className={styles.secretList} role="group" aria-label="Available secrets">
+                        {availableSecrets.map(({ name }) => {
+                          const isChecked = selectedSecretNames.includes(name)
+                          return (
+                            <label key={name} className={styles.secretOption}>
+                              <input
+                                type="checkbox"
+                                value={name}
+                                checked={isChecked}
+                                onChange={(event) => handleSecretToggle(event, name)}
+                                disabled={isSubmittingJob}
+                              />
+                              <span className={styles.secretOptionName}>{name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {selectedSecretNames.length > 0 ? (
+                      <div className={styles.selectedSecrets}>
+                        <span className={styles.selectedSecretsHeading}>Selected secrets</span>
+                        <ul className={styles.selectedSecretsList}>
+                          {selectedSecretDetails.map(({ secretName, query }) => {
+                            const detailQuery = query ?? null
+                            return (
+                              <li key={secretName} className={styles.selectedSecretItem}>
+                                <div className={styles.selectedSecretHeader}>
+                                  <span className={styles.secretOptionName}>{secretName}</span>
+                                </div>
+                                {detailQuery?.isPending ? (
+                                  <span className={styles.secretMeta}>Loading keys…</span>
+                                ) : detailQuery?.isError ? (
+                                  <span className={`${styles.secretMeta} ${styles.secretMetaError}`}>
+                                    Failed to load keys: {getErrorMessage(detailQuery.error)}
+                                  </span>
+                                ) : detailQuery?.data && detailQuery.data.keys.length > 0 ? (
+                                  <ul className={styles.secretKeysList}>
+                                    {detailQuery.data.keys.map((key) => (
+                                      <li key={key} className={styles.secretKeyPill}>
+                                        {key}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <span className={styles.secretMeta}>No keys configured.</span>
+                                )}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <footer className={styles.modalFooter}>
