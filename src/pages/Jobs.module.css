@@ -246,6 +246,119 @@
   color: #b91c1c;
 }
 
+.secretFieldStatus {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.secretFieldStatusError {
+  color: #b91c1c;
+}
+
+.secretList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+.secretOption {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.35rem;
+  border-radius: 0.55rem;
+  transition: background 0.15s ease;
+  cursor: pointer;
+}
+
+.secretOption:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.secretOption input {
+  margin-top: 0.2rem;
+}
+
+.secretOptionName {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.secretMeta {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.secretMetaError {
+  color: #b91c1c;
+}
+
+.selectedSecrets {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+}
+
+.selectedSecretsHeading {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.selectedSecretsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.selectedSecretItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.selectedSecretItem + .selectedSecretItem {
+  padding-top: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.selectedSecretHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.secretKeysList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.secretKeyPill {
+  background: #e2e8f0;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  color: #0f172a;
+}
+
 .submitButton {
   border: none;
   background: #2563eb;
