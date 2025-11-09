@@ -2,6 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent, JSX, KeyboardEvent, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { fetchSecretDetail, fetchSecrets, type SecretSummary } from '../api/secrets'
 import { GPU_PROFILES, type GPUProfile } from '../constants/gpuProfiles'
 import styles from './Jobs.module.css'
 
@@ -40,15 +41,6 @@ type JobSubmissionPayload = {
   gpu: GPUProfile
   storage: number
   secretNames: string[]
-}
-
-type SecretSummary = {
-  name: string
-}
-
-type SecretDetail = {
-  name: string
-  keys: string[]
 }
 
 const DEFAULT_STORAGE_GB = 1
@@ -171,67 +163,6 @@ const fetchJobImages = async (): Promise<JobImageOption[]> => {
   }
 
   return payload
-}
-
-const fetchSecrets = async (): Promise<SecretSummary[]> => {
-  const response = await fetch(`${API_BASE}/secrets/`, {
-    method: 'GET',
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to load secrets (status ${response.status}).`)
-  }
-
-  let payload: unknown
-  try {
-    payload = await response.json()
-  } catch {
-    throw new Error('Received unreadable secrets response. Please try again.')
-  }
-
-  if (!Array.isArray(payload) || !payload.every(isSecretSummary)) {
-    throw new Error('Received malformed secrets response. Please contact support.')
-  }
-
-  return payload
-}
-
-const fetchSecretDetail = async (secretName: string): Promise<SecretDetail> => {
-  const response = await fetch(`${API_BASE}/secrets/${encodeURIComponent(secretName)}`, {
-    method: 'GET',
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to load details for “${secretName}” (status ${response.status}).`)
-  }
-
-  let payload: unknown
-  try {
-    payload = await response.json()
-  } catch {
-    throw new Error('Received unreadable secret detail response. Please try again.')
-  }
-
-  if (!isSecretDetail(payload)) {
-    throw new Error('Received malformed secret detail response. Please contact support.')
-  }
-
-  return payload
-}
-
-const isSecretSummary = (value: unknown): value is SecretSummary => {
-  if (!value || typeof value !== 'object') return false
-  const record = value as Record<string, unknown>
-  return typeof record.name === 'string' && record.name.trim().length > 0
-}
-
-const isSecretDetail = (value: unknown): value is SecretDetail => {
-  if (!value || typeof value !== 'object') return false
-  const record = value as Record<string, unknown>
-  const keys = record.keys
-  return typeof record.name === 'string' && Array.isArray(keys) && keys.every((key) => typeof key === 'string')
 }
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {

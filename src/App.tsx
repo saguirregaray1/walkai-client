@@ -12,6 +12,7 @@ import PodDetail from './pages/PodDetail'
 import JobRunDetail from './pages/JobRunDetail'
 import VolumeDetail from './pages/VolumeDetail'
 import Profile from './pages/Profile'
+import Secrets from './pages/Secrets'
 
 const App = (): JSX.Element => {
   return (
@@ -30,6 +31,7 @@ const App = (): JSX.Element => {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="users" element={<Users />} />
+        <Route path="secrets" element={<Secrets />} />
         <Route path="jobs" element={<Jobs />} />
         <Route path="jobs/:jobId" element={<JobDetail />} />
         <Route path="jobs/:jobId/runs/:runId" element={<JobRunDetail />} />
