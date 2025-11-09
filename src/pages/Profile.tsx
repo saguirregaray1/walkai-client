@@ -311,7 +311,7 @@ const Profile = (): JSX.Element => {
                 {!isEmptyTokensNoticeDismissed ? (
                   <div className={styles.tokenNotice} role="status">
                     <div className={styles.tokenNoticeHeader}>
-                      <strong>Need CLI access?</strong>
+                      <strong>Haven&apos;t set up the Walk:AI CLI yet?</strong>
                       <button
                         type="button"
                         className={styles.tokenNoticeClose}
@@ -320,7 +320,7 @@ const Profile = (): JSX.Element => {
                       />
                     </div>
                     <p>
-                      Haven&apos;t set up the Walk:AI CLI yet? Create a new personal access token and follow the
+                      Create a new personal access token and follow the
                       instructions at{' '}
                       <a
                         href="https://github.com/walkai-org/walkai-cli?tab=readme-ov-file#walkai-cli"

@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { JSX } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { fetchClusterPods, type ClusterPod } from '../api/clusterPods'
 import styles from './JobRunDetail.module.css'
 
 const API_BASE = '/api' as const
 const MAX_LOG_LINES = 500
+const POD_ACTIVITY_STALE_TIME_MS = 4_000
+const POD_ACTIVITY_REFETCH_INTERVAL_MS = 5_000
 
 type VolumeInfo = {
   id: number
@@ -131,6 +134,23 @@ const JobRunDetail = (): JSX.Element => {
   })
 
   const run = runQuery.data
+  const podName = run?.k8s_pod_name ?? ''
+  const podDetailPath = podName ? `/app/pods/${encodeURIComponent(podName)}` : null
+  const jobDetailPath = jobId ? `/app/jobs/${jobId}` : null
+
+  const podAvailabilityQuery = useQuery<ClusterPod[], Error>({
+    queryKey: ['cluster', 'pods', 'availability', podName],
+    queryFn: fetchClusterPods,
+    enabled: Boolean(podName),
+    staleTime: POD_ACTIVITY_STALE_TIME_MS,
+    refetchInterval: POD_ACTIVITY_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+  })
+
+  const activePod = useMemo(() => {
+    if (!podName) return null
+    return podAvailabilityQuery.data?.find((candidate) => candidate.name === podName) ?? null
+  }, [podAvailabilityQuery.data, podName])
 
   const volumes = useMemo(() => {
     if (!run) return [] as Array<{ label: string; volume: VolumeInfo }>
@@ -143,6 +163,33 @@ const JobRunDetail = (): JSX.Element => {
   const [logLines, setLogLines] = useState<string[]>([])
   const [logError, setLogError] = useState<string | null>(null)
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
+
+  const shouldRenderPodButton = runQuery.isPending || Boolean(podName)
+  const podButtonLabel = (() => {
+    if (runQuery.isPending) return 'Loading pod…'
+    if (!podName) return 'Pod unavailable'
+    if (podAvailabilityQuery.isPending) return 'Checking pod…'
+    if (podAvailabilityQuery.isError) return 'Pod unavailable'
+    return activePod ? 'View pod' : 'Pod inactive'
+  })()
+
+  const podButtonDisabled =
+    runQuery.isPending ||
+    !podDetailPath ||
+    podAvailabilityQuery.isPending ||
+    podAvailabilityQuery.isError ||
+    !activePod
+
+  const jobButtonDisabled = !jobDetailPath
+  const jobButtonTitle = jobButtonDisabled ? 'Job path is unavailable.' : undefined
+
+  const podButtonTitle = (() => {
+    if (podAvailabilityQuery.isError) return podAvailabilityQuery.error.message
+    if (!activePod && podName && !podAvailabilityQuery.isPending) {
+      return 'Pod is not active right now.'
+    }
+    return undefined
+  })()
 
   useEffect(() => {
     if (!jobId || !runId) return undefined
@@ -238,8 +285,14 @@ const JobRunDetail = (): JSX.Element => {
     return `${styles.statusBadge} ${modifier}`.trim()
   }
 
-  const handleBack = () => {
-    navigate(-1)
+  const handleViewJob = () => {
+    if (!jobDetailPath) return
+    navigate(jobDetailPath)
+  }
+
+  const handleViewPod = () => {
+    if (!podDetailPath || !activePod) return
+    navigate(podDetailPath, { state: { pod: activePod } })
   }
 
   const runState = (() => {
@@ -261,9 +314,26 @@ const JobRunDetail = (): JSX.Element => {
           <p>Inspect metadata, volume attachments, and live logs for job #{jobId || 'Unknown'}.</p>
         </div>
         <div className={styles.headerActions}>
-          <button type="button" className={styles.backButton} onClick={handleBack}>
-            Back
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={handleViewJob}
+            disabled={jobButtonDisabled}
+            title={jobButtonTitle}
+          >
+            Go to job
           </button>
+          {shouldRenderPodButton && (
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={handleViewPod}
+              disabled={podButtonDisabled}
+              title={podButtonTitle}
+            >
+              {podButtonLabel}
+            </button>
+          )}
         </div>
       </header>
 
